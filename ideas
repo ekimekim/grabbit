@@ -1,0 +1,7 @@
+A rabbit-specific, gevent-specific AMQP library
+Focus on simple interface, cluster support, auto-managed channels
+
+layered API:
+	frame API
+	amqp functional API
+	user api (OOP, clustering, consuming, etc. doesn't expose channels.)
