@@ -1,4 +1,5 @@
 import struct
+import math
 
 from common import eat
 
@@ -95,6 +96,36 @@ class ShortString(String):
 class LongString(String):
 	len_type = Long
 	len_max = 2**32 - 1
+
+
+def Bits(*names):
+	"""Generates a datatype for len(names) bit fields.
+	Fields are accessible under given names
+	"""
+	length = int(math.ceil(len(names)/8))
+	class _Bits(DataType):
+		def pack(self):
+			masks = []
+			values = self.value[:]
+			for x in length:
+				mask = 0
+				for bit in range(8):
+					if values.pop(0):
+						mask |= 1 << bit
+				masks.append(mask)
+			return ''.join(Octet(mask).pack() for mask in masks)
+
+		@classmethod
+		def unpack(cls, data):
+			values = []
+			for x in range(length):
+				mask, data = Octet.unpack(data)
+				for bit in range(8):
+					values.append(mask & (1 << bit))
+			return cls(values), data
+
+	for bit, name in enumerate(names):
+		setattr(_Bits, name, property(lambda self: self.value[bit]))
 
 
 class ProtocolHeader(DataType):
