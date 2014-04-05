@@ -2,7 +2,7 @@ import sys
 import itertools as it
 
 from datatypes import Octet, Short, Long, Sequence
-from common import eat
+from common import eat, Method
 
 
 class FrameHeader(Sequence):
@@ -14,13 +14,34 @@ class FrameHeader(Sequence):
 
 
 class MethodPayload(Sequence):
-	fields = # TODO
+	fields = [
+		('method_class', Short),
+		('method_id', Short),
+	]
+
+	@classmethod
+	def get_method(cls, method_class, method_id):
+		for method in Method.__subclasses__():
+			if method.class_id == method_class and method.method_id == method_id:
+				return method
+		else:
+			raise ValueError("Unknown method for class {} and method_id {}".format(method_class, method_id))
+
+	def __init__()
+		# TODO pass params through to method unless third arg is Method, use super() for other two
+
+	def pack():
+		# TODO super() + method.pack()
+
+	@classmethod
+	def unpack():
+		# TODO manually interpret shorts, then lookup method and unpack arguments
 
 
 class ContentHeaderPayload(Sequence):
 	fields = [
-		('method_class', Octet),
-		('weight', Octet), # always \x00
+		('method_class', Short),
+		('weight', Short), # always 0
 		('body_size', LongLong),
 		('properties', Properties),
 	]
@@ -28,7 +49,7 @@ class ContentHeaderPayload(Sequence):
 	def __init__(self, method_class, body_size, properties):
 		if not isinstance(properties, Properties):
 			properties = Properties.get_by_class(method_class)(properties)
-		super(ContentHeaderPayload, self).__init__(method_class, '\x00', body_size, properties)
+		super(ContentHeaderPayload, self).__init__(method_class, 0, body_size, properties)
 
 	@classmethod
 	def unpack(cls, data):
