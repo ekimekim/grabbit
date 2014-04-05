@@ -12,15 +12,28 @@ class FrameHeader(Sequence):
 	]
 
 
-class Frame(object):
-	type = NotImplemented
-	payload_type = NotImplemented
-	FRAME_END = '\xCE'
+class MethodPayload(Sequence):
+	fields = []
+class ContentHeaderPayload(Sequence):
+class ContentPayload(Sequence):
+class HeartbeatPayload(Sequence):
 
-	def __init__(self, channel, payload):
+
+class Frame(object):
+	FRAME_END = '\xCE'
+	payload_types = {
+		1: MethodPayload,
+		2: ContentHeaderPayload,
+		3: ContentPayload,
+		4: HeartbeatPayload,
+	}
+
+	def __init__(self, type, channel, payload):
+		self.type = type
 		self.channel = channel
-		if not isinstance(payload, self.payload_type):
-			payload = self.payload_type(*payload)
+		payload_type = self.payload_types[type]
+		if not isinstance(payload, payload_type):
+			payload = payload_type(*payload)
 		self.payload = payload
 
 	def pack(self):
@@ -35,47 +48,18 @@ class Frame(object):
 		frame_end = eat(data, 1)
 		if frame_end != cls.FRAME_END:
 			raise ValueError("Framing error: Frame ended with {!r}, not {!r}".format(frame_end, cls.FRAME_END))
-		subcls = cls.resolve_type(header.type)
+		payload_type = cls.payload_types[header.type]
 		try:
-			payload, leftover = subcls.payload_type.unpack(payload)
+			payload, leftover = payload_type.unpack(payload)
 		except Incomplete:
 			_, _, tb = sys.exc_info()
 			ex = ValueError("Payload reported Incomplete")
 			raise type(ex), ex, tb
 		if leftover:
 			raise ValueError("Payload had excess bytes: {!r}".format(leftover))
-		return subcls(header.channel, payload)
+		return cls(header.type, header.channel, payload)
 
-	@classmethod
-	def resolve_type(cls, type):
-		for subcls in cls.__subclasses__():
-			if subcls.type == type:
-				return subcls
-		else:
-			raise ValueError("Unknown frame type: {!r}".format(type))
 
-class MethodPayload(Sequence):
-	fields = [
-	]
-class MethodFrame(Frame):
-	type = 1
-	payload_type = MethodPayload
-
-class ContentHeaderPayload(Sequence):
-	fields = [
-	]
-class ContentHeaderFrame(Frame):
-	type = 1
-	payload_type = MethodPayload
-
-class ContentPayload(Sequence):
-	fields = [
-	]
-class ContentFrame(Frame):
-	type = 1
-	payload_type = MethodPayload
-
-class HeartbeatPayload(Sequence):
 	fields = [
 	]
 class HeartbeatFrame(Frame):
