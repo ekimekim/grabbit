@@ -1,4 +1,5 @@
 import sys
+import itertools as it
 
 from datatypes import Octet, Short, Long, Sequence
 from common import eat
@@ -13,14 +14,48 @@ class FrameHeader(Sequence):
 
 
 class MethodPayload(Sequence):
-	fields = []
+	fields = # TODO
+
+
 class ContentHeaderPayload(Sequence):
-class ContentPayload(Sequence):
+	fields = [
+		('method_class', Octet),
+		('weight', Octet), # always \x00
+		('body_size', LongLong),
+		('properties', Properties),
+	]
+
+	def __init__(self, method_class, body_size, properties):
+		if not isinstance(properties, Properties):
+			properties = Properties.get_by_class(method_class)(properties)
+		super(ContentHeaderPayload, self).__init__(method_class, '\x00', body_size, properties)
+
+	@classmethod
+	def unpack(cls, data):
+		# we special-case as we need properties unpack class to change according to method_class
+		method_class, data = Octet.unpack(data)
+		weight, data = Octet.unpack(data)
+		body_size, data = LongLong.unpack(data)
+		properties, data = Properties.get_by_class(method_class).unpack(data)
+		return cls(method_class, body_size, properties)
+
+
+class ContentPayload(DataType):
+	def pack(self):
+		return self.value
+
+	@classmethod
+	def unpack(cls, data):
+		return cls(data), '' # eat it all! because we know we're only being passed the frame body.
+
+
 class HeartbeatPayload(Sequence):
+	fields = [] # heartbeat payload is always 0-length
 
 
 class Frame(object):
 	FRAME_END = '\xCE'
+	METHOD_TYPE, HEADER_TYPE, BODY_TYPE, HEARTBEAT_TYPE = it.count(1)
 	payload_types = {
 		1: MethodPayload,
 		2: ContentHeaderPayload,
@@ -28,13 +63,14 @@ class Frame(object):
 		4: HeartbeatPayload,
 	}
 
-	def __init__(self, type, channel, payload):
+	def __init__(self, type, channel, *payload):
 		self.type = type
 		self.channel = channel
 		payload_type = self.payload_types[type]
-		if not isinstance(payload, payload_type):
-			payload = payload_type(*payload)
-		self.payload = payload
+		if len(payload) == 1 and isinstance(payload[0], payload_type):
+			self.payload = payload
+		else:
+			self.payload = payload_type(*payload)
 
 	def pack(self):
 		payload = self.payload.pack()
@@ -44,11 +80,11 @@ class Frame(object):
 	@classmethod
 	def unpack(self, data):
 		header, data = FrameHeader.unpack(data)
-		payload, data = eat(data, header.size)
+		payload, data = eat(data, header.size.value)
 		frame_end = eat(data, 1)
 		if frame_end != cls.FRAME_END:
 			raise ValueError("Framing error: Frame ended with {!r}, not {!r}".format(frame_end, cls.FRAME_END))
-		payload_type = cls.payload_types[header.type]
+		payload_type = cls.payload_types[header.type.value]
 		try:
 			payload, leftover = payload_type.unpack(payload)
 		except Incomplete:
@@ -57,16 +93,5 @@ class Frame(object):
 			raise type(ex), ex, tb
 		if leftover:
 			raise ValueError("Payload had excess bytes: {!r}".format(leftover))
-		return cls(header.type, header.channel, payload)
+		return cls(header.type, header.channel.value, payload)
 
-
-	fields = [
-	]
-class HeartbeatFrame(Frame):
-	type = 1
-	payload_type = MethodPayload
-
-	def __init__(self, channel, payload):
-		if channel != 0:
-			raise CommandInvalid("Heartbeat frame on non-zero channel")
-		super(HeartbeatFrame
