@@ -1,15 +1,6 @@
 import struct
 
-class Incomplete(Exception):
-	pass
-
-def eat(data, length):
-	"""Helper method: Split (length) bytes from data and return it along with remainder,
-	or raise Incomplete if not long enough."""
-	if len(data) < length:
-		raise Incomplete
-	return data[length:], data[:length]
-
+from common import eat
 
 class DataType(object):
 	def __init__(self, value):
@@ -125,3 +116,35 @@ class ProtocolHeader(DataType):
 
 	def __len__(self):
 		return 8
+
+
+class Sequence(DataType):
+	"""Generic class for a datatype which is a fixed sequence of other data types."""
+	fields = NotImplemented # list of tuples (name, type)
+
+	def __init__(self, *values):
+		"""For a little magic niceness, we write attrs based on field names."""
+		if len(fields) != len(values):
+			raise TypeError("Wrong number of args to {}: Expected {}, got {}".format(
+			                type(self).__name__, len(self.fields), len(values)))
+		self.values = ()
+		for (name, datatype), value in zip(fields, values):
+			if not isinstance(value, datatype):
+				value = datatype(value)
+			setattr(self, name, value)
+			self.values += (value,)
+		super(Sequence, self).__init__(self.values)
+
+	def pack(self):
+		return ''.join(value.pack() for value in self.values)
+
+	@classmethod
+	def unpack(cls, data):
+		values = []
+		for name, datatype in fields:
+			value, data = datatype.unpack(data)
+			values.append(value)
+		return cls(*values, data)
+
+	def __len__(self):
+		return sum(len(value) for value in self.values)
