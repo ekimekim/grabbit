@@ -3,8 +3,7 @@ import itertools as it
 
 from datatypes import Octet, Short, Long, Sequence
 from common import eat
-
-from methods import Method
+from method import Method
 
 
 class FrameHeader(Sequence):
