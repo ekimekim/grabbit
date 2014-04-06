@@ -2,7 +2,9 @@ import sys
 import itertools as it
 
 from datatypes import Octet, Short, Long, Sequence
-from common import eat, Method
+from common import eat
+
+from methods import Method
 
 
 class FrameHeader(Sequence):
@@ -20,22 +22,30 @@ class MethodPayload(Sequence):
 	]
 
 	@classmethod
-	def get_method(cls, method_class, method_id):
+	def get_method_cls(cls, method_class, method_id):
 		for method in Method.__subclasses__():
 			if method.class_id == method_class and method.method_id == method_id:
 				return method
 		else:
 			raise ValueError("Unknown method for class {} and method_id {}".format(method_class, method_id))
 
-	def __init__()
-		# TODO pass params through to method unless third arg is Method, use super() for other two
+	def __init__(self, method_class, method_id, *arguments):
+		super(MethodPayload, self).__init__(method_class, method_id)
+		if len(arguments) == 1 and isinstance(arguments[0], Method):
+			self.method, = arguments
+		else:
+			self.method = self.get_method_cls(method_class, method_id)(*arguments)
 
-	def pack():
-		# TODO super() + method.pack()
+	def pack(self):
+		return super(MethodPayload, self).pack() + self.method.pack()
 
 	@classmethod
-	def unpack():
-		# TODO manually interpret shorts, then lookup method and unpack arguments
+	def unpack(cls):
+		method_class, data = Short.unpack(data)
+		method_id, data = Short.unpack(data)
+		method_type = cls.get_method_cls(method_class, method_id)
+		method, data = method_type.unpack(data)
+		return cls(method_class, method_id, method), data
 
 
 class ContentHeaderPayload(Sequence):
