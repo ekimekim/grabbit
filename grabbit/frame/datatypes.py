@@ -38,7 +38,7 @@ class FromStruct(DataType):
 	format_char = NotImplemented
 
 	def pack(self):
-		return struct.pack(self.struct_fmt(), value)
+		return struct.pack(self.struct_fmt(), self.value)
 
 	@classmethod
 	def unpack(cls, data):
@@ -160,11 +160,11 @@ class Sequence(DataType):
 
 	def __init__(self, *values):
 		"""For a little magic niceness, we write attrs based on field names."""
-		if len(fields) != len(values):
+		if len(self.fields) != len(values):
 			raise TypeError("Wrong number of args to {}: Expected {}, got {}".format(
 			                type(self).__name__, len(self.fields), len(values)))
 		self.values = ()
-		for (name, datatype), value in zip(fields, values):
+		for (name, datatype), value in zip(self.fields, values):
 			if not isinstance(value, datatype):
 				value = datatype(value)
 			setattr(self, name, value)
@@ -177,10 +177,10 @@ class Sequence(DataType):
 	@classmethod
 	def unpack(cls, data):
 		values = []
-		for name, datatype in fields:
+		for name, datatype in cls.fields:
 			value, data = datatype.unpack(data)
 			values.append(value)
-		return cls(*values, data)
+		return cls(*values), data
 
 	def __len__(self):
 		return sum(len(value) for value in self.values)

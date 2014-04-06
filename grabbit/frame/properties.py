@@ -1,5 +1,5 @@
 
-from datatypes import DataType
+from datatypes import DataType, Short
 
 
 class PropertyBit(DataType):
@@ -14,7 +14,7 @@ class Properties(DataType):
 		"""Values should be a dict"""
 		self.values = {}
 		for name, value in values.items():
-			if name not in property_map:
+			if name not in self.property_map:
 				raise TypeError("{} not a valid property for this method class".format(name))
 			value_type = self.property_map[name]
 			if not isinstance(value, value_type):

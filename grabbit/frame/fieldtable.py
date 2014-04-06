@@ -1,7 +1,10 @@
 
+import sys
+import string
 from decimal import Decimal as PyDecimal
 
-from datatypes import DataType, Octet, FromStruct
+from datatypes import DataType, Octet, FromStruct, ShortString, LongString, Timestamp
+from common import eat, Incomplete
 
 
 # note that data types defined here (like the Signed integers)
@@ -80,10 +83,10 @@ class FieldName(ShortString):
 	CHARS = FIRSTCHARS | set(string.digits) | {'_'}
 	def pack(self):
 		first, rest = eat(self.value, 1)
-		if first not in FIRSTCHARS:
+		if first not in self.FIRSTCHARS:
 			raise ValueError("Illegal character {} as first character of field name".format(first))
 		for c in rest:
-			if c not in CHARS:
+			if c not in self.CHARS:
 				raise ValueError("Illegal character {} in field name".format(c))
 		return super(FieldName, self).pack()
 

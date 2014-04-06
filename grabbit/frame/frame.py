@@ -1,8 +1,9 @@
 import sys
 import itertools as it
 
-from datatypes import Octet, Short, Long, Sequence
-from common import eat
+from datatypes import DataType, Octet, Short, Long, LongLong, Sequence
+from properties import Properties
+from common import eat, Incomplete
 from method import Method
 
 
@@ -39,7 +40,7 @@ class MethodPayload(Sequence):
 		return super(MethodPayload, self).pack() + self.method.pack()
 
 	@classmethod
-	def unpack(cls):
+	def unpack(cls, data):
 		method_class, data = Short.unpack(data)
 		method_id, data = Short.unpack(data)
 		method_type = cls.get_method_cls(method_class, method_id)
@@ -109,7 +110,7 @@ class Frame(DataType):
 		return header.pack() + payload + self.FRAME_END
 
 	@classmethod
-	def unpack(self, data):
+	def unpack(cls, data):
 		header, data = FrameHeader.unpack(data)
 		payload, data = eat(data, header.size.value)
 		frame_end = eat(data, 1)
