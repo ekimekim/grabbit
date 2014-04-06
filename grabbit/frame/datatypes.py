@@ -77,7 +77,7 @@ class String(DataType):
 	def pack(self):
 		length = len(self.value)
 		if length > self.len_max:
-			raise ValueError("Value too long: {!r}".format(self.value))
+			raise ValueError("String value too long: {!r}".format(self.value))
 		return self.len_type(length).pack() + self.value
 
 	@classmethod
@@ -92,6 +92,10 @@ class String(DataType):
 class ShortString(String):
 	len_type = Octet
 	len_max = 255
+	def pack(self):
+		if '\0' in self.value:
+			raise ValueError("ShortString cannot contain nul characters")
+		return super(ShortString, self).pack()
 
 class LongString(String):
 	len_type = Long
