@@ -121,7 +121,7 @@ class Frame(DataType):
 			payload, leftover = payload_type.unpack(payload)
 		except Incomplete:
 			_, _, tb = sys.exc_info()
-			ex = ValueError("Payload reported Incomplete")
+			ex = ValueError("Frame payload reported Incomplete")
 			raise type(ex), ex, tb
 		if leftover:
 			raise ValueError("Payload had excess bytes: {!r}".format(leftover))

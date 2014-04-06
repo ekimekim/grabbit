@@ -3,6 +3,7 @@ from decimal import Decimal as PyDecimal
 
 from datatypes import DataType, Octet, FromStruct
 
+
 # note that data types defined here (like the Signed integers)
 # are defined here because they only ever appear as FieldTable values
 
@@ -27,6 +28,7 @@ class Float(FromStruct):
 
 class Double(FromStruct):
 	format_char = 'd'
+
 
 class Decimal(DataType):
 	"""If you wish to accurately control precision of the value,
@@ -61,6 +63,7 @@ class Decimal(DataType):
 		exponent = -scale
 		return cls(PyDecimal((sign, digits, exponent))), data
 
+
 class Void(DataType):
 	def __init__(self):
 		super(Void, self).__init__(None)
@@ -69,6 +72,7 @@ class Void(DataType):
 	@classmethod
 	def unpack(cls, data):
 		return Void(), data
+
 
 class FieldName(ShortString):
 	len_max = 128
@@ -84,37 +88,83 @@ class FieldName(ShortString):
 		return super(FieldName, self).pack()
 
 
-# NOTE: These definitions are what is used by RabbitMQ, NOT what is defined by the spec.
-# source: https://www.rabbitmq.com/amqp-0-9-1-errata.html as of 2014-04-05
+class FieldArray(DataType):
+	"""Expects an iterable value"""
+	def pack(self):
+		payload = ''
+		for value in self.values:
+			field_type = choose_type(value)
+			field_specifier = FIELD_SPECIFIERS[field_type]
+			payload += field_specifier + field_type
+		return LongString(payload).pack()
+
+	@classmethod
+	def unpack(cls, data):
+		payload, data = LongString.unpack()
+		values = []
+		try:
+			while payload:
+				type_specifier, payload = eat(payload, 1)
+				field_type = FIELD_TYPES[type_specifier]
+				value, payload = field_type.unpack(payload)
+				values.append(value)
+		except Incomplete:
+			_, _, tb = sys.exc_info()
+			ex = ValueError("FieldArray payload reported Incomplete")
+			raise type(ex), ex, tb
+		return cls(values), data
+
+
 class FieldTable(DataType):
-	field_types = {
-		't': Boolean,
-		'b': SignedOctet,
-		's': SignedShort,
-		'I': SignedLong,
-		'l': SignedLongLong,
-		'f': Float,
-		'd': Double,
-		'D': Decimal,
-		'S': LongString,
-		'A': FieldArray, # ???
-		'T': Timestamp,
-		'F': None, # NOTE: We want to put FieldTable here, but that kind of recursive usage
-		           #       is not possible within the class definition itself, we add it afterwards.
-		'V': Void,
-		'x': # TODO ??? rabbit calls this "byte array" but it's unclear if it's similar to ShortString or LongString
-	}
-
-	def __init__(self, **value):
-		super(self, FieldTable).__init__(value)
-
+	"""Expects a dict value"""
 	def pack(self):
 		payload = ''
 		for name, value in self.values.items():
-			field_type = self.choose_type(value)
-			field_specifier = {v: k for k, v in self.field_types.items()}[field_type]
+			field_type = choose_type(value)
+			field_specifier = FIELD_SPECIFIERS[field_type]
 			payload += FieldName(name).pack() + field_specifier + field_type(value).pack()
 		return LongString(payload).pack()
 
+	@classmethod
+	def unpack(cls, data):
+		payload, data = LongString.unpack()
+		values = {}
+		try:
+			while payload:
+				name, payload = FieldName.unpack(payload)
+				type_specifier, payload = eat(payload, 1)
+				field_type = FIELD_TYPES[type_specifier]
+				value, payload = field_type.unpack(payload)
+				values[name] = value.value
+		except Incomplete:
+			_, _, tb = sys.exc_info()
+			ex = ValueError("FieldTable payload reported Incomplete")
+			raise type(ex), ex, tb
+		return cls(values), data
 
-FieldTable.field_types['F'] = FieldTable # see earlier comment on field_types['F']
+
+def choose_type(value):
+	"""Pick a field type for value"""
+
+
+# NOTE: These definitions are what is used by RabbitMQ, NOT what is defined by the spec.
+# source: https://www.rabbitmq.com/amqp-0-9-1-errata.html as of 2014-04-05
+FIELD_TYPES = {
+	't': Boolean,
+	'b': SignedOctet,
+	's': SignedShort,
+	'I': SignedLong,
+	'l': SignedLongLong,
+	'f': Float,
+	'd': Double,
+	'D': Decimal,
+	'S': LongString,
+	'A': FieldArray,
+	'T': Timestamp,
+	'F': FieldTable,
+	'V': Void,
+	'x': LongString, # NOTE: This is properly defined as "byte array" but the format is identical
+	                 #       to LongString. We treat them as the same since we make no attempt at text encoding.
+}
+FIELD_SPECIFIERS = {v: k for k, v in FIELD_TYPES.items()}
+
