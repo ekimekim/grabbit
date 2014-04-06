@@ -34,7 +34,7 @@ class DataType(object):
 		return len(self.pack())
 
 
-class Integer(DataType):
+class FromStruct(DataType):
 	format_char = NotImplemented
 
 	def pack(self):
@@ -57,17 +57,18 @@ class Integer(DataType):
 	def __len__(self):
 		return self.len()
 
-class Octet(Integer):
+class Octet(FromStruct):
 	format_char = 'B'
 
-class Short(Integer):
+class Short(FromStruct):
 	format_char = 'H'
 
-class Long(Integer):
+class Long(FromStruct):
 	format_char = 'L'
 
-class LongLong(Integer):
+class LongLong(FromStruct):
 	format_char = 'Q'
+Timestamp = LongLong
 
 
 class String(DataType):
