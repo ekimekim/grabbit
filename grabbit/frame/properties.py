@@ -1,4 +1,6 @@
 
+from datatypes import DataType
+
 
 class PropertyBit(DataType):
 	# this data type never gets explicitly packed/unpacked

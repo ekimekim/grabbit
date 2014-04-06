@@ -84,7 +84,7 @@ class HeartbeatPayload(Sequence):
 	fields = [] # heartbeat payload is always 0-length
 
 
-class Frame(object):
+class Frame(DataType):
 	FRAME_END = '\xCE'
 	METHOD_TYPE, HEADER_TYPE, BODY_TYPE, HEARTBEAT_TYPE = it.count(1)
 	payload_types = {
@@ -102,6 +102,7 @@ class Frame(object):
 			self.payload = payload
 		else:
 			self.payload = payload_type(*payload)
+		super(Frame, self).__init__(self.type, self.channel, self.payload)
 
 	def pack(self):
 		payload = self.payload.pack()
