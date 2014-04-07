@@ -9,4 +9,4 @@ def eat(data, length):
        or raise Incomplete if not long enough."""
        if len(data) < length:
                raise Incomplete
-       return data[length:], data[:length]
+       return data[:length], data[length:]

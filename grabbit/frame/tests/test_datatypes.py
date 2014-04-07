@@ -1,7 +1,7 @@
 
 from unittest import TestCase, main
 
-from grabbit.frames.datatypes import *
+from grabbit.frame.datatypes import *
 
 class DatatypeTests(TestCase):
 
@@ -27,12 +27,12 @@ class DatatypeTests(TestCase):
 
 	def test_bits(self):
 		TestFlags = Bits('foo', 'bar', 'baz')
-		self.check(TestFlags, True, True, (False), '\x06')
+		self.check(TestFlags, '\x03', (True, True, False))
 	def test_bits_big(self):
 		BigTestFlags = Bits('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j')
 		self.check(BigTestFlags,
-		           (True, False, True, False, True, True, False, False, False, True),
-		           '\x0a\x35')
+		           '\x35\x02',
+		           (True, False, True, False, True, True, False, False, False, True))
 	def test_bits_properties(self):
 		TestFlags = Bits('foo', 'bar', 'baz')
 		flags = TestFlags((True, False, True))
@@ -49,10 +49,10 @@ class DatatypeTests(TestCase):
 				('three', ShortString),
 			]
 		obj = TestSequence(1, (True, False), "test")
-		self.assertEquals(obj.one, 1)
+		self.assertEquals(obj.one.value, 1)
 		self.assertEquals(obj.two.x, True)
 		self.assertEquals(obj.two.y, False)
-		self.assertEquals(obj.three, "test")
+		self.assertEquals(obj.three.value, "test")
 		self.check(TestSequence, '\x00\x01\x01\x04test', 1, (True, False), "test")
 
 if __name__ == '__main__':

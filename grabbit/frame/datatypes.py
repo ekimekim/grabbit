@@ -84,7 +84,7 @@ class String(DataType):
 	@classmethod
 	def unpack(cls, data):
 		length, data = cls.len_type.unpack(data)
-		string, data = eat(data, length)
+		string, data = eat(data, length.value)
 		return cls(string), data
 
 	def __len__(self):
@@ -107,14 +107,18 @@ def Bits(*names):
 	"""Generates a datatype for len(names) bit fields.
 	Fields are accessible under given names
 	"""
-	length = int(math.ceil(len(names)/8))
+	length = int(math.ceil(len(names)/8.0))
 	class _Bits(DataType):
+		def __init__(self, values):
+			super(_Bits, self).__init__(list(values))
+
 		def pack(self):
 			masks = []
 			values = self.value[:]
-			for x in length:
+			for x in range(length):
 				mask = 0
 				for bit in range(8):
+					if not values: break
 					if values.pop(0):
 						mask |= 1 << bit
 				masks.append(mask)
@@ -125,16 +129,25 @@ def Bits(*names):
 			values = []
 			for x in range(length):
 				mask, data = Octet.unpack(data)
+				mask = mask.value
 				for bit in range(8):
 					values.append(bool(mask & (1 << bit)))
+			values = values[:len(names)] # discard trailing bits
 			return cls(values), data
 
+	def gen_property(bit):
+		def get(self): return self.value[bit]
+		def set(self, value): self.value[bit] = value
+		return property(get, set)
 	for bit, name in enumerate(names):
-		setattr(_Bits, name, property(lambda self: self.value[bit]))
+		setattr(_Bits, name, gen_property(bit))
+
+	return _Bits
 
 
 class ProtocolHeader(DataType):
 	def __init__(self, proto_id='\x00', proto_version='\x00\x09\x01'):
+		self.proto_id = proto_id
 		self.proto_version = proto_version
 		super(ProtocolHeader, self).__init__((proto_id, proto_version))
 
@@ -155,11 +168,12 @@ class ProtocolHeader(DataType):
 
 
 class Sequence(DataType):
-	"""Generic class for a datatype which is a fixed sequence of other data types."""
+	"""Generic class for a datatype which is a fixed sequence of other data types.
+	Data values are accessible as attributes.
+	"""
 	fields = NotImplemented # list of tuples (name, type)
 
 	def __init__(self, *values):
-		"""For a little magic niceness, we write attrs based on field names."""
 		if len(self.fields) != len(values):
 			raise TypeError("Wrong number of args to {}: Expected {}, got {}".format(
 			                type(self).__name__, len(self.fields), len(values)))
@@ -167,9 +181,14 @@ class Sequence(DataType):
 		for (name, datatype), value in zip(self.fields, values):
 			if not isinstance(value, datatype):
 				value = datatype(value)
-			setattr(self, name, value)
 			self.values += (value,)
 		super(Sequence, self).__init__(self.values)
+
+	def __getattr__(self, attr):
+		for (name, datatype), value in zip(self.fields, self.values):
+			if name == attr:
+				return value
+		raise AttributeError(attr)
 
 	def pack(self):
 		return ''.join(value.pack() for value in self.values)
