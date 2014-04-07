@@ -53,7 +53,9 @@ class Decimal(DataType):
 	@classmethod
 	def unpack(cls, data):
 		scale, data = Octet.unpack(data)
+		scale = scale.value
 		value, data = SignedLong.unpack(data)
+		value = value.value
 		sign = 0
 		if value < 0:
 			sign = 1
@@ -95,22 +97,25 @@ class FieldArray(DataType):
 	"""Expects an iterable value"""
 	def pack(self):
 		payload = ''
-		for value in self.values:
-			field_type = choose_type(value)
+		for value in self.value:
+			if not isinstance(value, DataType):
+				value = field_type_coerce(value)
+			field_type = type(value)
 			field_specifier = FIELD_SPECIFIERS[field_type]
-			payload += field_specifier + field_type
+			payload += field_specifier + value.pack()
 		return LongString(payload).pack()
 
 	@classmethod
 	def unpack(cls, data):
-		payload, data = LongString.unpack()
+		payload, data = LongString.unpack(data)
+		payload = payload.value
 		values = []
 		try:
 			while payload:
 				type_specifier, payload = eat(payload, 1)
 				field_type = FIELD_TYPES[type_specifier]
 				value, payload = field_type.unpack(payload)
-				values.append(value)
+				values.append(value.value)
 		except Incomplete:
 			_, _, tb = sys.exc_info()
 			ex = ValueError("FieldArray payload reported Incomplete")
@@ -122,19 +127,23 @@ class FieldTable(DataType):
 	"""Expects a dict value"""
 	def pack(self):
 		payload = ''
-		for name, value in self.values.items():
-			field_type = choose_type(value)
+		for name, value in self.value.items():
+			if not isinstance(value, DataType):
+				value = field_type_coerce(value)
+			field_type = type(value)
 			field_specifier = FIELD_SPECIFIERS[field_type]
-			payload += FieldName(name).pack() + field_specifier + field_type(value).pack()
+			payload += FieldName(name).pack() + field_specifier + value.pack()
 		return LongString(payload).pack()
 
 	@classmethod
 	def unpack(cls, data):
-		payload, data = LongString.unpack()
+		payload, data = LongString.unpack(data)
+		payload = payload.value
 		values = {}
 		try:
 			while payload:
 				name, payload = FieldName.unpack(payload)
+				name = name.value
 				type_specifier, payload = eat(payload, 1)
 				field_type = FIELD_TYPES[type_specifier]
 				value, payload = field_type.unpack(payload)
@@ -146,8 +155,38 @@ class FieldTable(DataType):
 		return cls(values), data
 
 
-def choose_type(value):
-	"""Pick a field type for value"""
+def field_type_coerce(value):
+	"""Pick a field type for value.
+	We prefer consistency over the smallest possible representation.
+	We thenn return the coverted value.
+	"""
+	type_map = {
+		bool: Boolean,
+		int: SignedLongLong,
+		long: SignedLongLong,
+		float: Double,
+		PyDecimal: Decimal,
+		str: LongString,
+		dict: FieldTable
+	}
+	if isinstance(value, unicode):
+		# if you care about your encoding, you should be doing it yourself
+		# as a sensible default, we use UTF-8
+		value = value.encode('utf-8')
+	for type, datatype in type_map.items():
+		if isinstance(value, type):
+			return datatype(value)
+	if value is None:
+		return Void()
+	# if we still haven't found a match, our next thing to check is to convert iterables to FieldArrays
+	try:
+		value = list(value)
+	except TypeError:
+		pass
+	else:
+		return FieldArray(value)
+	# give up
+	raise ValueError("Could not convert {!r} to a field table type".format(value))
 
 
 # NOTE: These definitions are what is used by RabbitMQ, NOT what is defined by the spec.
@@ -170,4 +209,4 @@ FIELD_TYPES = {
 	                 #       to LongString. We treat them as the same since we make no attempt at text encoding.
 }
 FIELD_SPECIFIERS = {v: k for k, v in FIELD_TYPES.items()}
-
+FIELD_SPECIFIERS[LongString] = 'S' # we need to specify this manually as it appears in FIELD_TYPES twice
