@@ -6,10 +6,10 @@ from grabbit.frames.method import Method
 from grabbit.frames.properties import Properties
 from grabbit.frames.frame import Frame
 
-from common import TEST_METHOD_CLASS, TestMethod, TestProperties
+from common import TEST_METHOD_CLASS, TestMethod, TestProperties, FramesTestCase
 
 
-class FrameTests(TestCase):
+class FrameTests(FramesTestCase):
 
 	def check(self, frame, expected):
 		self.assertEquals(frame.pack(), expected)

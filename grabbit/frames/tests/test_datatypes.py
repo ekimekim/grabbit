@@ -1,15 +1,11 @@
 
-from unittest import TestCase, main
+from unittest import main
 
-from grabbit.frame.datatypes import *
+from grabbit.frames.datatypes import *
 
-class DatatypeTests(TestCase):
+from common import FramesTestCase
 
-	def check(self, datatype, expected, *values):
-		self.assertEquals(datatype(*values).pack(), expected)
-		unpacked, leftover = datatype.unpack(expected)
-		self.assertEquals(unpacked, datatype(*values))
-		self.assertEquals(leftover, '')
+class DatatypeTests(FramesTestCase):
 
 	def test_octet(self):
 		self.check(Octet, '\xab', 0xab)

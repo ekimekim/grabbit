@@ -15,13 +15,26 @@ class Properties(DataType):
 		"""Values should be a dict"""
 		self.values = {}
 		for name, value in values.items():
-			if name not in self.property_map:
+			for _name, _type in self.property_map:
+				if _name == name:
+					value_type = _type
+					break
+			else:
 				raise TypeError("{} not a valid property for this method class".format(name))
-			value_type = self.property_map[name]
 			if not isinstance(value, value_type):
 				value = value_type(value)
 			self.values[name] = value
-		self.__dict__.update(self.values)
+		# special case for PropertyBit - always present, default False
+		for name, type in self.property_map:
+			if type == PropertyBit:
+				self.values.setdefault(name, PropertyBit(False))
+		super(Properties, self).__init__(self.values)
+
+	def __getattr__(self, attr):
+		for name, type in self.property_map:
+			if name == attr:
+				return self.values[name]
+		raise AttributeError(attr)
 
 	def pack(self):
 		# presence of a property is encoded as a bit in 16-bit words (highest first)
@@ -56,6 +69,7 @@ class Properties(DataType):
 		list_items = []
 		while True:
 			mask, data = Short.unpack(data)
+			mask = mask.value
 			for bit in range(15, 0, -1):
 				property_index += 1
 				if not mask & (1 << bit):

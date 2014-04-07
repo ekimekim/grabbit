@@ -1,4 +1,6 @@
 
+import unittest
+
 from grabbit.frames import datatypes
 from grabbit.frames.method import Method
 from grabbit.frames.properties import Properties, PropertyBit
@@ -20,3 +22,11 @@ class TestProperties(Properties):
 		("a_bool", PropertyBit),
 		("a_string", datatypes.ShortString),
 	]
+
+
+class FramesTestCase(unittest.TestCase):
+	def check(self, datatype, expected, *values):
+		self.assertEquals(datatype(*values).pack(), expected)
+		unpacked, leftover = datatype.unpack(expected)
+		self.assertEquals(unpacked, datatype(*values))
+		self.assertEquals(leftover, '')
