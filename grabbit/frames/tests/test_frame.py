@@ -21,7 +21,7 @@ class FrameTests(FramesTestCase):
 		frame = Frame(Frame.METHOD_TYPE, 1, TestMethod('hello world', 1234))
 		expected = (
 			"\x01" # frame type: method
-			"\x01" # channel: 1
+			"\x00\x01" # channel: 1
 			"\x00\x00\x00\x18" # payload size: 24
 			# payload:
 				"\xff\x42" # method class: 0xff42
@@ -37,7 +37,7 @@ class FrameTests(FramesTestCase):
 		frame = Frame(Frame.HEADER_TYPE, 1, TEST_METHOD_CLASS, 42, {"an_int": 7, "a_bool": True})
 		expected = (
 			"\x02" # frame type: header
-			"\x01" # channel: 1
+			"\x00\x01" # channel: 1
 			"\x00\x00\x00\x10" # payload size: 16
 			# payload:
 				"\xff\x42" # method class: 0xff42
@@ -55,7 +55,7 @@ class FrameTests(FramesTestCase):
 		frame = Frame(Frame.BODY_TYPE, 1, "placeholder strings are hard")
 		expected = (
 			"\x03" # frame type: body
-			"\x01" # channel: 1
+			"\x00\x01" # channel: 1
 			"\x00\x00\x00\x1c" # payload size: 28
 			# payload:
 				"placeholder strings are hard"
@@ -67,7 +67,7 @@ class FrameTests(FramesTestCase):
 		frame = Frame(Frame.HEARTBEAT_TYPE, 0)
 		expected = (
 			"\x04" # frame type: body
-			"\x00" # channel: 0
+			"\x00\x00" # channel: 0
 			"\x00\x00\x00\x00" # payload size: 0
 			"\xCE" # frame end
 		)

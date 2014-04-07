@@ -1,5 +1,4 @@
 import sys
-import itertools as it
 
 from datatypes import DataType, Octet, Short, Long, LongLong, Sequence
 from properties import Properties
@@ -24,7 +23,7 @@ class MethodPayload(Sequence):
 	@classmethod
 	def get_method_cls(cls, method_class, method_id):
 		for method in Method.__subclasses__():
-			if method.class_id == method_class and method.method_id == method_id:
+			if method.method_class == method_class and method.method_id == method_id:
 				return method
 		else:
 			raise ValueError("Unknown method for class {} and method_id {}".format(method_class, method_id))
@@ -49,7 +48,7 @@ class MethodPayload(Sequence):
 	def unpack(cls, data):
 		method_class, data = Short.unpack(data)
 		method_id, data = Short.unpack(data)
-		method_type = cls.get_method_cls(method_class, method_id)
+		method_type = cls.get_method_cls(method_class.value, method_id.value)
 		method, data = method_type.unpack(data)
 		return cls(method), data
 
@@ -92,7 +91,7 @@ class HeartbeatPayload(Sequence):
 
 class Frame(DataType):
 	FRAME_END = '\xCE'
-	METHOD_TYPE, HEADER_TYPE, BODY_TYPE, HEARTBEAT_TYPE = it.count(1)
+	METHOD_TYPE, HEADER_TYPE, BODY_TYPE, HEARTBEAT_TYPE = range(1, 5)
 	payload_types = {
 		1: MethodPayload,
 		2: ContentHeaderPayload,
@@ -105,10 +104,10 @@ class Frame(DataType):
 		self.channel = channel
 		payload_type = self.payload_types[type]
 		if len(payload) == 1 and isinstance(payload[0], payload_type):
-			self.payload = payload
+			self.payload, = payload
 		else:
 			self.payload = payload_type(*payload)
-		super(Frame, self).__init__(self.type, self.channel, self.payload)
+		super(Frame, self).__init__((self.type, self.channel, self.payload))
 
 	def pack(self):
 		payload = self.payload.pack()
@@ -119,7 +118,7 @@ class Frame(DataType):
 	def unpack(cls, data):
 		header, data = FrameHeader.unpack(data)
 		payload, data = eat(data, header.size.value)
-		frame_end = eat(data, 1)
+		frame_end, data = eat(data, 1)
 		if frame_end != cls.FRAME_END:
 			raise ValueError("Framing error: Frame ended with {!r}, not {!r}".format(frame_end, cls.FRAME_END))
 		payload_type = cls.payload_types[header.type.value]
@@ -131,5 +130,5 @@ class Frame(DataType):
 			raise type(ex), ex, tb
 		if leftover:
 			raise ValueError("Payload had excess bytes: {!r}".format(leftover))
-		return cls(header.type, header.channel.value, payload)
+		return cls(header.type.value, header.channel.value, payload), data
 
