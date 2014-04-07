@@ -29,12 +29,18 @@ class MethodPayload(Sequence):
 		else:
 			raise ValueError("Unknown method for class {} and method_id {}".format(method_class, method_id))
 
-	def __init__(self, method_class, method_id, *arguments):
-		super(MethodPayload, self).__init__(method_class, method_id)
-		if len(arguments) == 1 and isinstance(arguments[0], Method):
-			self.method, = arguments
+	def __init__(self, *args):
+		"""Args can either be a single arg Method, or method_class, method_id, *args
+		where *args are passed onto the correct Method constructor"""
+		if len(args) == 1 and isinstance(args[0], Method):
+			self.method, = args
+			method_class, method_id = self.method.method_class, self.method.method_id
 		else:
-			self.method = self.get_method_cls(method_class, method_id)(*arguments)
+			if len(args) < 2:
+				raise TypeError("If no Method given, method_class and method_id must be provided")
+			method_class, method_id = args[:2]
+			self.method = self.get_method_cls(method_class, method_id)(*args[2:])
+		super(MethodPayload, self).__init__(method_class, method_id)
 
 	def pack(self):
 		return super(MethodPayload, self).pack() + self.method.pack()
@@ -45,7 +51,7 @@ class MethodPayload(Sequence):
 		method_id, data = Short.unpack(data)
 		method_type = cls.get_method_cls(method_class, method_id)
 		method, data = method_type.unpack(data)
-		return cls(method_class, method_id, method), data
+		return cls(method), data
 
 
 class ContentHeaderPayload(Sequence):
