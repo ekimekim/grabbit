@@ -126,7 +126,7 @@ def Bits(*names):
 			for x in range(length):
 				mask, data = Octet.unpack(data)
 				for bit in range(8):
-					values.append(mask & (1 << bit))
+					values.append(bool(mask & (1 << bit)))
 			return cls(values), data
 
 	for bit, name in enumerate(names):
