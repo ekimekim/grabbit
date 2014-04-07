@@ -8,6 +8,7 @@ class PropertyBit(DataType):
 
 
 class Properties(DataType):
+	method_class = NotImplemented
 	property_map = NotImplemented # list of tuples (property name, property type)
 
 	def __init__(self, values):
@@ -73,3 +74,10 @@ class Properties(DataType):
 			value, data = datatype.unpack(data)
 			values[name] = value
 		return cls(values), data
+
+	@classmethod
+	def get_by_class(cls, method_class):
+		for subcls in cls.__subclasses__():
+			if subcls.method_class == method_class:
+				return subcls
+		raise ValueError("No Properties defined for method class {:x}".format(method_class))
