@@ -63,7 +63,7 @@ class CommandInvalid(ConnectionError):
 	code = 503
 class InvalidChannelError(ConnectionError):
 	# Note: In the spec, this is called a "channel-error"
-	"""Given channel is not open"""
+	"""Given channel is not valid for this method"""
 	code = 504
 class UnexpectedFrame(ConnectionError):
 	"""Peer sent a frame that was not expected"""
