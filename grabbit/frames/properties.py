@@ -1,4 +1,6 @@
 
+from grabbit.common import get_all_subclasses
+
 from datatypes import DataType, Short
 
 
@@ -91,7 +93,7 @@ class Properties(DataType):
 
 	@classmethod
 	def get_by_class(cls, method_class):
-		for subcls in cls.__subclasses__():
+		for subcls in get_all_subclasses(cls):
 			if subcls.method_class == method_class:
 				return subcls
 		raise ValueError("No Properties defined for method class {:x}".format(method_class))

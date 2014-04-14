@@ -1,5 +1,7 @@
 import sys
 
+from grabbit.common import get_all_subclasses
+
 from datatypes import DataType, Octet, Short, Long, LongLong, Sequence
 from properties import Properties
 from common import eat, Incomplete
@@ -22,7 +24,7 @@ class MethodPayload(Sequence):
 
 	@classmethod
 	def get_method_cls(cls, method_class, method_id):
-		for method in Method.__subclasses__():
+		for method in get_all_subclasses(Method):
 			if method.method_class == method_class and method.method_id == method_id:
 				return method
 		else:
