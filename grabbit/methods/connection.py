@@ -1,6 +1,8 @@
 
 from grabbit.frames import Method, FieldTable, ShortString, LongString, Octet
 
+from common import CloseMethod
+
 
 CLASS_ID = 10
 
@@ -106,20 +108,11 @@ class CloseOk(ConnectionMethod):
 	method_id = 51
 	fields = []
 
-class Close(ConnectionMethod):
+class Close(CloseMethod, ConnectionMethod):
 	"""Close connection gracefully.
-	code refers to the error code causing the close, and reason is a human-readable error message.
-	If the error was due to a failed method, the method class and method id should be given.
-	If it was not, the spec is unclear. A safe bet is to set them both to 0.
 	After sending a Close, all subsequent methods should be ignored (except Close and CloseOk).
 	A received Close should be responded to with a CloseOk even if a Close has been sent.
 	"""
 	method = 50
 	response = CloseOk
-	fields = [
-		('code', Short),
-		('reason', ShortString),
-		('failed_class', Short),
-		('failed_method', Short),
-	]
 
