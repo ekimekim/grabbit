@@ -26,6 +26,9 @@ class ConnectionError(AMQPError):
 class ContentTooLarge(ChannelError):
 	"""Server rejected content - too large. Try again later."""
 	code = 311
+class NoRoute(ChannelError):
+	"""Mandatory flag set and message cannot be routed to a queue"""
+	code = 312
 class NoConsumers(ChannelError):
 	"""Immediate flag set and no immediate delivery possible"""
 	code = 313
