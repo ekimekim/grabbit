@@ -13,13 +13,13 @@ class ChannelMethod(Method):
 class OpenOk(ChannelMethod):
 	"""Server response indicating channel is now able to be used"""
 	method_id = 11
-	fields = []
+	fields = [('reserved', LongString)]
 
 class Open(ChannelMethod):
 	"""First method on a new channel. Client request to open this channel."""
 	method_id = 10
 	response = OpenOk
-	fields = []
+	fields = [('reserved', ShortString)]
 
 # NOTE: rabbitmq does not support the Flow method
 # It is included here only for completeness.

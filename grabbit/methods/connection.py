@@ -95,13 +95,17 @@ class Tune(ConnectionMethod):
 class OpenOk(ConnectionMethod):
 	"""Connection is ready"""
 	method_id = 41
-	fields = []
+	fields = [('reserved', ShortString)]
 
 class Open(ConnectionMethod):
 	"""Open the new connection with given virtual host, sent by client"""
 	method_id = 40
 	response = OpenOk
-	fields = [('virtual_host', ShortString)]
+	fields = [
+		('virtual_host', ShortString),
+		('reserved1', ShortString),
+		('reserved2', Bits('reserved')),
+	]
 
 class CloseOk(ConnectionMethod):
 	"""Confirm connection gracefully closed"""
