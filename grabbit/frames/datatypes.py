@@ -1,5 +1,6 @@
 import struct
 import math
+from collections import defaultdict
 
 from common import eat
 
@@ -103,12 +104,15 @@ class LongString(String):
 	len_max = 2**32 - 1
 
 
+class BitsType(DataType):
+	"""This supertype for generated Bits types is used in subclass tests"""
 def Bits(*names):
 	"""Generates a datatype for len(names) bit fields.
 	Fields are accessible under given names
 	"""
 	length = int(math.ceil(len(names)/8.0))
-	class _Bits(DataType):
+	class _Bits(BitsType):
+		_names = names
 		def __init__(self, values):
 			super(_Bits, self).__init__(list(values))
 
@@ -135,6 +139,9 @@ def Bits(*names):
 			values = values[:len(names)] # discard trailing bits
 			return cls(values), data
 
+		def __len__(self):
+			return length
+
 	def gen_property(bit):
 		def get(self): return self.value[bit]
 		def set(self, value): self.value[bit] = value
@@ -142,6 +149,7 @@ def Bits(*names):
 	for bit, name in enumerate(names):
 		setattr(_Bits, name, gen_property(bit))
 
+	_Bits.__name__ = '{}_Bits'.format(len(names))
 	return _Bits
 
 
@@ -170,22 +178,69 @@ class ProtocolHeader(DataType):
 class Sequence(DataType):
 	"""Generic class for a datatype which is a fixed sequence of other data types.
 	Data values are accessible as attributes.
+	fields should be a list of (name, type) or (name, type, default).
+	If name is None and value is a BitsType, then the names of the individual bits are exposed,
+		eg. they can be accessed with sequence.name and set in the contstructor by kwarg.
+	Otherwise, if name is None, this is treated as an "unused" field which will not be settable
+		except by the default (this is used to implement those annoying "reserved" fields).
 	"""
 	fields = NotImplemented # list of tuples (name, type)
 
-	def __init__(self, *values):
-		if len(self.fields) != len(values):
-			raise TypeError("Wrong number of args to {}: Expected {}, got {}".format(
-			                type(self).__name__, len(self.fields), len(values)))
+	# class methods that are transforms on cls.fields
+	@classmethod
+	def allnames(cls):
+		return [field[0] for field in cls.fields]
+	@classmethod
+	def names(cls):
+		return [name for name in cls.allnames() if name is not None]
+	@classmethod
+	def types(cls):
+		return [field[1] for field in cls.fields]
+	@classmethod
+	def defaults(cls):
+		return {field[0]: field[2] for field in cls.fields if len(field) == 3}
+	@classmethod
+	def bittypes(cls):
+		"""Map from field name to the bittype that contains it"""
+		result = {}
+		for name, datatype in zip(cls.allnames(), cls.types()):
+			if name is not None or not issubclass(datatype, BitsType):
+				continue
+			for bit_name in datatype._names:
+				result[bit_name] = datatype
+
+	def __init__(self, *args, **kwargs):
+		"""This constructor takes field values as both ordered args and kwargs."""
+		# get defaults
+		values = self.defaults()
+		# add in args
+		values.update(dict(zip(self.names(), args)))
+		# extract BitType kwargs
+		bittype_kwargs = defaultdict(lambda: {})
+		bittypes = self.bittypes()
+		for name in kwargs.keys(): # .keys as we modify kwargs during the loop
+			if name in bittypes:
+				datatype = bittypes[name]
+				bittype_kwargs[datatype][name] = kwargs.pop(name)
+		# add in kwargs
+		values.update(kwargs)
+
 		self.values = ()
-		for (name, datatype), value in zip(self.fields, values):
+		for name, datatype in zip(self.allnames(), self.types()):
+			if name not in values:
+				if name is None:
+					raise TypeError("Unnamed argument of type {} has no default".format(datatype.__name__))
+				else:
+					raise TypeError("Argument {!r} is required".format(name))
+			value = values[name]
 			if not isinstance(value, datatype):
 				value = datatype(value)
 			self.values += (value,)
+
 		super(Sequence, self).__init__(self.values)
 
 	def __getattr__(self, attr):
-		for (name, datatype), value in zip(self.fields, self.values):
+		for name, value in zip(self.allnames(), self.values):
 			if name == attr:
 				return value
 		raise AttributeError(attr)
@@ -196,7 +251,7 @@ class Sequence(DataType):
 	@classmethod
 	def unpack(cls, data):
 		values = []
-		for name, datatype in cls.fields:
+		for datatype in cls.types():
 			value, data = datatype.unpack(data)
 			values.append(value)
 		return cls(*values), data
