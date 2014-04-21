@@ -31,6 +31,7 @@ class Start(ConnectionMethod):
 	"""
 	method_id = 10
 	response = StartOk
+
 	fields = [
 		('version_major', Octet),
 		('version_minor', Octet),
@@ -38,6 +39,7 @@ class Start(ConnectionMethod):
 		('_security_mechanisms', LongString),
 		('_locales', LongString),
 	]
+
 	@property
 	def version(self):
 		return self.version_major.value, self.version_minor.value
@@ -47,6 +49,13 @@ class Start(ConnectionMethod):
 	@property
 	def locales(self):
 		return self._locales.split(' ')
+
+	def __init__(self, version_major, version_minor, server_properties, security_mechanisms, locales):
+		if not isinstance(security_mechanisms, basestring):
+			security_mechanisms = ' '.join(security_mechanisms)
+		if not isinstance(locales, basestring):
+			locales = ' '.join(locales)
+		super(Start, self).__init__(version_major, version_minor, server_properties, security_mechanisms, locales)
 
 class SecureOk(ConnectionMethod):
 	"""Security response, returned by client. Contents are defined by chosen security mechanism."""
@@ -96,6 +105,8 @@ class OpenOk(ConnectionMethod):
 	"""Connection is ready"""
 	method_id = 41
 	fields = [('reserved', ShortString)]
+	def __init__(self, reserved=''):
+		super(OpenOk, self).__init__(reserved)
 
 class Open(ConnectionMethod):
 	"""Open the new connection with given virtual host, sent by client"""
@@ -106,6 +117,8 @@ class Open(ConnectionMethod):
 		('reserved1', ShortString),
 		('reserved2', Bits('reserved')),
 	]
+	def __init__(self, virtual_host, reserved1='', reserved2=False):
+		return super(Open, self).__init__(virtual_host, reserved1, [reserved2])
 
 class CloseOk(ConnectionMethod):
 	"""Confirm connection gracefully closed"""

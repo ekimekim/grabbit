@@ -14,12 +14,16 @@ class OpenOk(ChannelMethod):
 	"""Server response indicating channel is now able to be used"""
 	method_id = 11
 	fields = [('reserved', LongString)]
+	def __init__(self, reserved=''):
+		super(OpenOk, self).__init__(reserved)
 
 class Open(ChannelMethod):
 	"""First method on a new channel. Client request to open this channel."""
 	method_id = 10
 	response = OpenOk
 	fields = [('reserved', ShortString)]
+	def __init__(self, reserved=''):
+		super(Open, self).__init__(reserved)
 
 # NOTE: rabbitmq does not support the Flow method
 # It is included here only for completeness.
@@ -28,6 +32,8 @@ class FlowOk(ChannelMethod):
 	rabbitmq does not support this method."""
 	method_id = 21
 	fields = [('flags', Bits('active'))]
+	def __init__(self, active):
+		super(FlowOk, self).__init__([active])
 
 class Flow(ChannelMethod):
 	"""Requests flow control action.
@@ -35,6 +41,8 @@ class Flow(ChannelMethod):
 	method_id = 20
 	response = FlowOk
 	fields = [('flags', Bits('active'))]
+	def __init__(self, active):
+		super(Flow, self).__init__([active])
 
 class CloseOk(ChannelMethod):
 	"""Confirms channel as closed."""
