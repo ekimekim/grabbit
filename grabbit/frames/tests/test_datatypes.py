@@ -40,16 +40,19 @@ class DatatypeTests(FramesTestCase):
 	def test_sequence(self):
 		class TestSequence(Sequence):
 			fields = [
+				(None, ShortString, ''),
 				('one', Short),
-				('two', Bits('x', 'y')),
-				('three', ShortString),
+				(None, Bits('two', 'three')),
+				('four', ShortString, 'test'),
+				('five', Short, 5),
 			]
-		obj = TestSequence(1, (True, False), "test")
+		obj = TestSequence(1, two=True, three=False, five=3)
 		self.assertEquals(obj.one.value, 1)
-		self.assertEquals(obj.two.x, True)
-		self.assertEquals(obj.two.y, False)
-		self.assertEquals(obj.three.value, "test")
-		self.check(TestSequence, '\x00\x01\x01\x04test', 1, (True, False), "test")
+		self.assertEquals(obj.two, True)
+		self.assertEquals(obj.three, False)
+		self.assertEquals(obj.four.value, "test")
+		self.assertEquals(obj.five.value, 3)
+		self.check(TestSequence, '\x00\x00\x01\x01\x04test\x00\x03', 1, two=True, three=False, five=3)
 
 if __name__ == '__main__':
 	main()

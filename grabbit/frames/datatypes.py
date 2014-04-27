@@ -1,6 +1,5 @@
 import struct
 import math
-from collections import defaultdict
 
 from common import eat
 
@@ -114,6 +113,9 @@ def Bits(*names):
 	class _Bits(BitsType):
 		_names = names
 		def __init__(self, values):
+			values = list(values)
+			if len(values) != len(names):
+				raise ValueError("Bad length for values, expected {} items, got: {!r}".format(len(names), values))
 			super(_Bits, self).__init__(list(values))
 
 		def pack(self):
@@ -180,7 +182,7 @@ class Sequence(DataType):
 	Data values are accessible as attributes.
 	fields should be a list of (name, type) or (name, type, default).
 	If name is None and value is a BitsType, then the names of the individual bits are exposed,
-		eg. they can be accessed with sequence.name and set in the contstructor by kwarg.
+		eg. they can be accessed with sequence.name and set in the constructor by kwarg.
 	Otherwise, if name is None, this is treated as an "unused" field which will not be settable
 		except by the default (this is used to implement those annoying "reserved" fields).
 	"""
@@ -189,60 +191,63 @@ class Sequence(DataType):
 	# class methods that are transforms on cls.fields
 	@classmethod
 	def allnames(cls):
+		"""All names in fields"""
 		return [field[0] for field in cls.fields]
 	@classmethod
 	def names(cls):
+		"""All non-None names in fields"""
 		return [name for name in cls.allnames() if name is not None]
 	@classmethod
 	def types(cls):
 		return [field[1] for field in cls.fields]
 	@classmethod
 	def defaults(cls):
-		return {field[0]: field[2] for field in cls.fields if len(field) == 3}
+		"""Returns a list of the default value for each field respectively,
+		with None for fields without a default"""
+		return [field[2] if len(field) >= 3 else None for field in cls.fields]
 	@classmethod
-	def bittypes(cls):
-		"""Map from field name to the bittype that contains it"""
-		result = {}
-		for name, datatype in zip(cls.allnames(), cls.types()):
-			if name is not None or not issubclass(datatype, BitsType):
-				continue
-			for bit_name in datatype._names:
-				result[bit_name] = datatype
+	def bitnames(cls):
+		"""Returns a list of the attr names of each bittype field, or None if not a bittype"""
+		return [datatype._names if issubclass(datatype, BitsType) else None for datatype in cls.types()]
 
 	def __init__(self, *args, **kwargs):
-		"""This constructor takes field values as both ordered args and kwargs."""
-		# get defaults
-		values = self.defaults()
-		# add in args
-		values.update(dict(zip(self.names(), args)))
-		# extract BitType kwargs
-		bittype_kwargs = defaultdict(lambda: {})
-		bittypes = self.bittypes()
-		for name in kwargs.keys(): # .keys as we modify kwargs during the loop
-			if name in bittypes:
-				datatype = bittypes[name]
-				bittype_kwargs[datatype][name] = kwargs.pop(name)
-		# add in kwargs
+		"""This constructor takes field values as both ordered args and kwargs.
+		Note that only named fields are taken as args, and bit fields that are exposed (by having
+		the field name of the BitsType set to None) must be set from kwargs.
+		"""
+		values = dict(zip(self.names(), args))
 		values.update(kwargs)
 
 		self.values = ()
-		for name, datatype in zip(self.allnames(), self.types()):
-			if name not in values:
-				if name is None:
-					raise TypeError("Unnamed argument of type {} has no default".format(datatype.__name__))
-				else:
-					raise TypeError("Argument {!r} is required".format(name))
-			value = values[name]
+		for name, datatype, default, bitnames in zip(self.allnames(), self.types(),
+		                                             self.defaults(), self.bitnames()):
+			if name in values:
+				value = values[name]
+			elif bitnames is not None:
+				missing = set(bitnames) - set(values.keys())
+				if missing:
+					raise TypeError("Flags {} not given".format(', '.join(missing)))
+				value = [values[name] for name in bitnames]
+			elif default is not None:
+				value = default
+			elif name is None:
+				raise TypeError("Unnamed argument of type {} has no default".format(datatype.__name__))
+			else:
+				raise TypeError("Argument {!r} is required".format(name))
+
 			if not isinstance(value, datatype):
 				value = datatype(value)
+
 			self.values += (value,)
 
 		super(Sequence, self).__init__(self.values)
 
 	def __getattr__(self, attr):
-		for name, value in zip(self.allnames(), self.values):
+		for name, value, bitnames in zip(self.allnames(), self.values, self.bitnames()):
 			if name == attr:
 				return value
+			if bitnames and attr in bitnames:
+				return getattr(value, attr)
 		raise AttributeError(attr)
 
 	def pack(self):
@@ -250,11 +255,15 @@ class Sequence(DataType):
 
 	@classmethod
 	def unpack(cls, data):
-		values = []
-		for datatype in cls.types():
+		kwargs = {}
+		for name, datatype, bitnames in zip(cls.allnames(), cls.types(), cls.bitnames()):
 			value, data = datatype.unpack(data)
-			values.append(value)
-		return cls(*values), data
+			if name is not None:
+				kwargs[name] = value
+			if bitnames is not None:
+				# map BitType values to bit flag names and update kwargs
+				kwargs.update(dict(zip(bitnames, value.value)))
+		return cls(**kwargs), data
 
 	def __len__(self):
 		return sum(len(value) for value in self.values)

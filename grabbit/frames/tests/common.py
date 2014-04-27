@@ -25,8 +25,8 @@ class TestProperties(Properties):
 
 
 class FramesTestCase(unittest.TestCase):
-	def check(self, datatype, expected, *values):
-		self.assertEquals(datatype(*values).pack(), expected)
+	def check(self, datatype, expected, *args, **kwargs):
+		self.assertEquals(datatype(*args, **kwargs).pack(), expected)
 		unpacked, leftover = datatype.unpack(expected)
-		self.assertEquals(unpacked, datatype(*values))
+		self.assertEquals(unpacked, datatype(*args, **kwargs))
 		self.assertEquals(leftover, '')
