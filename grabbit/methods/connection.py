@@ -113,10 +113,8 @@ class Open(ConnectionMethod):
 	fields = [
 		('virtual_host', ShortString),
 		(None, ShortString),
-		(None, Bits('reserved')),
+		(None, Bits(None)),
 	]
-	def __init__(self, virtual_host, reserved1='', reserved2=False):
-		return super(Open, self).__init__(virtual_host, reserved1, [reserved2])
 
 class CloseOk(ConnectionMethod):
 	"""Confirm connection gracefully closed"""

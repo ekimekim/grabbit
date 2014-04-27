@@ -33,10 +33,10 @@ class Declare(ExchangeMethod):
 	method_id = 10
 	response = DeclareOk
 	fields = [
-		('reserved', Short),
+		(None, Short),
 		('name', ShortString),
 		('type', ShortString),
-		('flags', Bits('passive', 'durable', 'autodelete', 'internal', 'nowait')),
+		(None, Bits('passive', 'durable', 'autodelete', 'internal', 'nowait')),
 		('arguments', FieldTable),
 	]
 
@@ -53,9 +53,9 @@ class Delete(ExchangeMethod):
 	method_id = 20
 	response = DeleteOk
 	fields = [
-		('reserved', Short),
+		(None, Short),
 		('name', ShortString),
-		('flags', Bits('if_unused', 'nowait')),
+		(None, Bits('if_unused', 'nowait')),
 	]
 
 class BindOk(ExchangeMethod):
@@ -72,10 +72,10 @@ class Bind(ExchangeMethod):
 	method_id = 30
 	response = BindOk
 	fields = [
-		('reserved', Short),
+		(None, Short),
 		('destination', ShortString),
 		('source', ShortString),
 		('routing_key', ShortString),
-		('flags', Bits('nowait')),
+		(None, Bits('nowait')),
 		('arguments', FieldTable),
 	]
