@@ -185,6 +185,7 @@ class Sequence(DataType):
 		eg. they can be accessed with sequence.name and set in the constructor by kwarg.
 	Otherwise, if name is None, this is treated as an "unused" field which will not be settable
 		except by the default (this is used to implement those annoying "reserved" fields).
+		(This latter part also applies to Bits() names, where None values will always be False)
 	"""
 	fields = NotImplemented # list of tuples (name, type)
 
@@ -215,13 +216,14 @@ class Sequence(DataType):
 		Note that only named fields are taken as args, and bit fields that are exposed (by having
 		the field name of the BitsType set to None) must be set from kwargs.
 		"""
-		values = dict(zip(self.names(), args))
+		values = {None: False} # This gives a default to BitType flags named None
+		values.update(dict(zip(self.names(), args)))
 		values.update(kwargs)
 
 		self.values = ()
 		for name, datatype, default, bitnames in zip(self.allnames(), self.types(),
 		                                             self.defaults(), self.bitnames()):
-			if name in values:
+			if name is not None and name in values:
 				value = values[name]
 			elif bitnames is not None:
 				missing = set(bitnames) - set(values.keys())

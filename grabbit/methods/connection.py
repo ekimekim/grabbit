@@ -104,9 +104,7 @@ class Tune(ConnectionMethod):
 class OpenOk(ConnectionMethod):
 	"""Connection is ready"""
 	method_id = 41
-	fields = [('reserved', ShortString)]
-	def __init__(self, reserved=''):
-		super(OpenOk, self).__init__(reserved)
+	fields = [(None, ShortString, '')]
 
 class Open(ConnectionMethod):
 	"""Open the new connection with given virtual host, sent by client"""
@@ -114,8 +112,8 @@ class Open(ConnectionMethod):
 	response = OpenOk
 	fields = [
 		('virtual_host', ShortString),
-		('reserved1', ShortString),
-		('reserved2', Bits('reserved')),
+		(None, ShortString),
+		(None, Bits('reserved')),
 	]
 	def __init__(self, virtual_host, reserved1='', reserved2=False):
 		return super(Open, self).__init__(virtual_host, reserved1, [reserved2])
