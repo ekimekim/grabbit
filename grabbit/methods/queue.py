@@ -77,7 +77,6 @@ class Unbind(QueueMethod):
 	"""
 	method_id = 50
 	response = UnbindOk
-	has_nowait = False
 	fields = [
 		(None, Short),
 		('queue', ShortString),
