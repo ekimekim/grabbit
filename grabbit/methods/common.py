@@ -1,5 +1,5 @@
 
-from grabbit.frames import Method
+from grabbit.frames import Method, Short, ShortString
 
 
 class CloseMethod(Method):

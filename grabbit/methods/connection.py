@@ -1,5 +1,5 @@
 
-from grabbit.frames import Method, FieldTable, ShortString, LongString, Octet
+from grabbit.frames import Method, Bits, FieldTable, Long, LongString, Octet, Short, ShortString
 
 from common import CloseMethod
 

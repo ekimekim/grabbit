@@ -1,5 +1,5 @@
 
-from grabbit.frames import Method
+from grabbit.frames import Method, Bits, LongString, ShortString
 
 from common import CloseMethod
 

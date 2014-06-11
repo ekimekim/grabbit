@@ -1,7 +1,7 @@
 
 """Note that the confirm method class is a RabbitMQ extension."""
 
-from grabbit.frames import Method
+from grabbit.frames import Method, Bits
 
 
 CLASS_ID = 85

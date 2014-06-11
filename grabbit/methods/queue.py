@@ -1,5 +1,5 @@
 
-from grabbit.frames import Method
+from grabbit.frames import Method, Bits, FieldTable, Long, Short, ShortString
 
 
 CLASS_ID = 50

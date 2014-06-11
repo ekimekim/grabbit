@@ -1,5 +1,6 @@
 
-from grabbit.frames import Method, Properties
+from grabbit.frames import Method, Properties, Bits, FieldTable, Long, LongLong, \
+                           Octet, Short, ShortString, Timestamp
 
 
 CLASS_ID = 60
