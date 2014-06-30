@@ -37,10 +37,12 @@ class Decimal(DataType):
 	"""If you wish to accurately control precision of the value,
 	you should pass in an instance of python decimal.Decimal,
 	or a string which can be cast to that type."""
+
 	def __init__(self, value):
 		if not isinstance(value, PyDecimal):
 			value = PyDecimal(value)
 		super(Decimal, self).__init__(value)
+
 	def pack(self):
 		if not self.value.is_finite():
 			raise ValueError("Cannot encode a non-finite value")
@@ -97,12 +99,12 @@ class FieldArray(DataType):
 	"""Expects an iterable value"""
 	def pack(self):
 		payload = ''
-		for value in self.value:
-			if not isinstance(value, DataType):
-				value = field_type_coerce(value)
-			field_type = type(value)
+		for item in self.value:
+			if not isinstance(item, DataType):
+				item = field_type_coerce(item)
+			field_type = type(item)
 			field_specifier = FIELD_SPECIFIERS[field_type]
-			payload += field_specifier + value.pack()
+			payload += field_specifier + item.pack()
 		return LongString(payload).pack()
 
 	@classmethod
@@ -115,12 +117,15 @@ class FieldArray(DataType):
 				type_specifier, payload = eat(payload, 1)
 				field_type = FIELD_TYPES[type_specifier]
 				value, payload = field_type.unpack(payload)
-				values.append(value.value)
+				values.append(value)
 		except Incomplete:
 			_, _, tb = sys.exc_info()
 			ex = ValueError("FieldArray payload reported Incomplete")
 			raise type(ex), ex, tb
 		return cls(values), data
+
+	def get_value(self):
+		return [item.get_value() for item in self.value]
 
 
 class FieldTable(DataType):
@@ -147,18 +152,21 @@ class FieldTable(DataType):
 				type_specifier, payload = eat(payload, 1)
 				field_type = FIELD_TYPES[type_specifier]
 				value, payload = field_type.unpack(payload)
-				values[name] = value.value
+				values[name] = value
 		except Incomplete:
 			_, _, tb = sys.exc_info()
 			ex = ValueError("FieldTable payload reported Incomplete")
 			raise type(ex), ex, tb
 		return cls(values), data
 
+	def get_value(self):
+		return {name: value.get_value() for name, value in self.value.items()}
+
 
 def field_type_coerce(value):
 	"""Pick a field type for value.
 	We prefer consistency over the smallest possible representation.
-	We thenn return the coverted value.
+	We then return the coverted value.
 	"""
 	type_map = {
 		bool: Boolean,

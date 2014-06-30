@@ -20,6 +20,12 @@ class DataType(object):
 			return type(self) == type(other) and self.value == other.value
 		return self.value == other
 
+	def get_value(self):
+		"""This should return the "value" that the user expects to get when reading this data type.
+		For simple data types, this can just be self.value (and this default). Others may wish to
+		return other values, or even just self."""
+		return self.value
+
 	def pack(self):
 		raise NotImplementedError
 
@@ -143,6 +149,9 @@ def Bits(*names):
 			values = values[:len(names)] # discard trailing bits
 			return cls(values), data
 
+		def get_value(self):
+			return self
+
 		def __len__(self):
 			return length
 
@@ -249,7 +258,7 @@ class Sequence(DataType):
 	def __getattr__(self, attr):
 		for name, value, bitnames in zip(self.allnames(), self.values, self.bitnames()):
 			if name == attr:
-				return value
+				return value.get_value()
 			if bitnames and attr in bitnames:
 				return getattr(value, attr)
 		raise AttributeError(attr)

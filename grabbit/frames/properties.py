@@ -38,6 +38,9 @@ class Properties(DataType):
 				return self.values[name]
 		raise AttributeError(attr)
 
+	def get_value(self):
+		return {key: value.get_value() for key, value in self.values.items()}
+
 	def pack(self):
 		# presence of a property is encoded as a bit in 16-bit words (highest first)
 		# last bit of each word is 1 if there is another word coming, else 0

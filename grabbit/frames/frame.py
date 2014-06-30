@@ -119,11 +119,11 @@ class Frame(DataType):
 	@classmethod
 	def unpack(cls, data):
 		header, data = FrameHeader.unpack(data)
-		payload, data = eat(data, header.size.value)
+		payload, data = eat(data, header.size)
 		frame_end, data = eat(data, 1)
 		if frame_end != cls.FRAME_END:
 			raise ValueError("Framing error: Frame ended with {!r}, not {!r}".format(frame_end, cls.FRAME_END))
-		payload_type = cls.payload_types[header.type.value]
+		payload_type = cls.payload_types[header.type]
 		try:
 			payload, leftover = payload_type.unpack(payload)
 		except Incomplete:
@@ -132,5 +132,7 @@ class Frame(DataType):
 			raise type(ex), ex, tb
 		if leftover:
 			raise ValueError("Payload had excess bytes: {!r}".format(leftover))
-		return cls(header.type.value, header.channel.value, payload), data
+		return cls(header.type, header.channel, payload), data
 
+	def get_value(self):
+		return self

@@ -47,11 +47,11 @@ class DatatypeTests(FramesTestCase):
 				('five', Short, 5),
 			]
 		obj = TestSequence(1, two=True, three=False, five=3)
-		self.assertEquals(obj.one.value, 1)
+		self.assertEquals(obj.one, 1)
 		self.assertEquals(obj.two, True)
 		self.assertEquals(obj.three, False)
-		self.assertEquals(obj.four.value, "test")
-		self.assertEquals(obj.five.value, 3)
+		self.assertEquals(obj.four, "test")
+		self.assertEquals(obj.five, 3)
 		self.check(TestSequence, '\x00\x00\x01\x01\x04test\x00\x03', 1, two=True, three=False, five=3)
 
 if __name__ == '__main__':
