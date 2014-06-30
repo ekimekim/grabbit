@@ -16,7 +16,9 @@ class DataType(object):
 	__str__ = __repr__
 
 	def __eq__(self, other):
-		return type(self) == type(other) and self.value == other.value
+		if isinstance(other, DataType):
+			return type(self) == type(other) and self.value == other.value
+		return self.value == other
 
 	def pack(self):
 		raise NotImplementedError
