@@ -4,15 +4,24 @@ from grabbit.common import get_all_subclasses
 class AMQPError(Exception):
 	code = NotImplemented
 
+	def __init__(self, reason=None, **data):
+		"""Reason is an optional error message, which may be more specific than the default.
+		Data is any extra data that may be associated with the error, such as the value(s) that failed."""
+		if not reason:
+			reason = self.__doc__
+		self.reason = reason
+		self.data = data
+
 	@classmethod
 	def from_code(cls, code):
+		"""Look up error class based on code."""
 		for subcls in get_all_subclasses(cls):
 			if subcls.code == code:
 				return subcls
 		raise ValueError("No known subclass for code: {!r}".format(code))
 
 	def __str__(self):
-		s = "{cls.__name__}: {cls.__doc__}".format(cls=type(self))
+		s = "{cls.__name__}: {self.reason} (extra data: {self.data!r})".format(self=self, cls=type(self))
 		if self.args:
 			s += " ({})".format(', '.join(map(repr, self.args)))
 

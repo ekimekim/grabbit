@@ -1,4 +1,6 @@
 
+from grabbit.common import get_all_subclasses
+
 from datatypes import Sequence
 
 class Method(Sequence):
@@ -14,4 +16,13 @@ class Method(Sequence):
 	method_id = NotImplemented
 	response = None
 	has_content = False
+
+	@classmethod
+	def from_id(cls, method_class, method_id):
+		"""Look up Method class based on method_class and method_id numbers."""
+		for method in get_all_subclasses(Method):
+			if method.method_class == method_class and method.method_id == method_id:
+				return method
+		else:
+			raise ValueError("Unknown method for class {} and method_id {}".format(method_class, method_id))
 

@@ -6,7 +6,7 @@ class CloseMethod(Method):
 	"""This class implements some shared functionality between
 	channel.Close and connection.Close. In particular, these methods
 	behave more like exceptions than normal methods, and we define a
-	constructor more suited to this usage.
+	constructor and some helpers more suited to this usage.
 
 	Field info:
 		code refers to the error code causing the close.
@@ -37,13 +37,38 @@ class CloseMethod(Method):
 		if code is None:
 			# second form
 			if error:
-				code = error.code
-				reason = str(error)
+				code, reason = error.code, str(error)
+			else:
+				code, reason = 0, ''
 			if method:
 				failed_class = method.method_class
 				failed_method = method.method_id
+			else:
+				failed_class = failed_method = 0
 		else:
 			# first form
 			if any(arg is None for arg in (code, reason, failed_class, failed_method)):
 				raise TypeError("Constructor for CloseMethod did not receive enough args")
 		super(CloseMethod, self).__init__(code, reason, failed_class, failed_method)
+
+	@property
+	def method(self):
+		"""Looks up the method that failed, or None"""
+		if 0 in (self.failed_class, self.failed_method):
+			return None
+		return Method.from_id(self.failed_class, self.failed_method)
+
+	@property
+	def error(self):
+		"""Looks up the error type according to code,
+		returning an instance with reason, and method as extra data.
+		If no code (no error), returns None."""
+		if not self.code:
+			return None
+		cls = AMQPError.from_code(self.code)
+		return cls(self.reason, method=self.method)
+
+	def raise_error(self):
+		"""Raises the associated error, if any."""
+		if self.error:
+			raise self.error

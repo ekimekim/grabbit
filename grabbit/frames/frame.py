@@ -1,7 +1,5 @@
 import sys
 
-from grabbit.common import get_all_subclasses
-
 from datatypes import DataType, Octet, Short, Long, LongLong, Sequence
 from properties import Properties
 from common import eat, Incomplete
@@ -22,14 +20,6 @@ class MethodPayload(Sequence):
 		('method_id', Short),
 	]
 
-	@classmethod
-	def get_method_cls(cls, method_class, method_id):
-		for method in get_all_subclasses(Method):
-			if method.method_class == method_class and method.method_id == method_id:
-				return method
-		else:
-			raise ValueError("Unknown method for class {} and method_id {}".format(method_class, method_id))
-
 	def __init__(self, *args):
 		"""Args can either be a single arg Method, or method_class, method_id, *args
 		where *args are passed onto the correct Method constructor"""
@@ -39,8 +29,9 @@ class MethodPayload(Sequence):
 		else:
 			if len(args) < 2:
 				raise TypeError("If no Method given, method_class and method_id must be provided")
-			method_class, method_id = args[:2]
-			self.method = self.get_method_cls(method_class, method_id)(*args[2:])
+			method_class, method_id  = args[:2]
+			args = args[2:]
+			self.method = Method.from_id(method_class, method_id)(*args)
 		super(MethodPayload, self).__init__(method_class, method_id)
 
 	def pack(self):
@@ -50,7 +41,7 @@ class MethodPayload(Sequence):
 	def unpack(cls, data):
 		method_class, data = Short.unpack(data)
 		method_id, data = Short.unpack(data)
-		method_type = cls.get_method_cls(method_class.value, method_id.value)
+		method_type = Method.from_id(method_class.value, method_id.value)
 		method, data = method_type.unpack(data)
 		return cls(method), data
 
