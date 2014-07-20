@@ -20,6 +20,9 @@ class AMQPError(Exception):
 				return subcls
 		raise ValueError("No known subclass for code: {!r}".format(code))
 
+	def __eq__(self, other):
+		return type(self) == type(other) and self.reason == other.reason and self.data == other.data
+
 	def __str__(self):
 		s = "{cls.__name__}: {self.reason} (extra data: {self.data!r})".format(self=self, cls=type(self))
 		if self.args:
