@@ -4,4 +4,4 @@ from frame import Frame
 from method import Method
 from properties import Properties, PropertyBit
 
-from datatypes import DataType, Octet, Short, Long, LongLong, ShortString, LongString, Bits, Sequence
+from datatypes import DataType, Octet, Short, Long, LongLong, Timestamp, ShortString, LongString, Bits, Sequence
