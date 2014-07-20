@@ -1,12 +1,9 @@
 
-from unittest import TestCase, main
+from unittest import main
 
-from grabbit.frames import datatypes
-from grabbit.frames.method import Method
-from grabbit.frames.properties import Properties
 from grabbit.frames.frame import Frame
 
-from common import TEST_METHOD_CLASS, TestMethod, TestProperties, FramesTestCase
+from common import TEST_METHOD_CLASS, TestMethod, FramesTestCase
 
 
 class FrameTests(FramesTestCase):
