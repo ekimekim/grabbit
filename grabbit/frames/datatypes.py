@@ -1,6 +1,7 @@
 import struct
 import math
 
+from grabbit.common import classproperty
 from common import eat
 
 class DataType(object):
@@ -113,23 +114,38 @@ class LongString(String):
 
 class BitsType(DataType):
 	"""This supertype for generated Bits types is used in subclass tests"""
-def Bits(*names):
+def Bits(*name_list):
 	"""Generates a datatype for len(names) bit fields.
-	Fields are accessible under given names
+	Fields are accessible under given names.
+	Any name of None is treated as a reserved field, which is always False.
 	"""
-	length = int(math.ceil(len(names)/8.0))
 	class _Bits(BitsType):
-		_names = names
+
+		# like Sequence, we distinguish between all_names as "on-wire fields"
+		# and names as "addressable fields"
+		all_names = name_list
+
 		def __init__(self, values):
 			values = list(values)
-			if len(values) != len(names):
-				raise ValueError("Bad length for values, expected {} items, got: {!r}".format(len(names), values))
-			super(_Bits, self).__init__(list(values))
+			if len(values) != len(self.names):
+				raise ValueError("Bad length for values, expected {} items, got: {!r}".format(len(self.names), values))
+			values = dict(zip(self.names, map(bool, values)))
+			super(_Bits, self).__init__(values)
+
+		@classproperty
+		def names(cls):
+			return [name for name in cls.all_names if name is not None]
+		@classproperty
+		def length(cls):
+			return int(math.ceil(len(cls.all_names)/8.0))
+		@property
+		def value_list(self):
+			return [False if name is None else self.value[name] for name in self.all_names]
 
 		def pack(self):
 			masks = []
-			values = self.value[:]
-			for x in range(length):
+			values = self.value_list
+			for x in range(len(self)):
 				mask = 0
 				for bit in range(8):
 					if not values: break
@@ -141,28 +157,29 @@ def Bits(*names):
 		@classmethod
 		def unpack(cls, data):
 			values = []
-			for x in range(length):
+			for x in range(cls.length):
 				mask, data = Octet.unpack(data)
 				mask = mask.value
 				for bit in range(8):
 					values.append(bool(mask & (1 << bit)))
-			values = values[:len(names)] # discard trailing bits
+			# strip out reserved fields and the pad bits at the end
+			values = [value for name, value in zip(cls.all_names, values) if name is not None]
 			return cls(values), data
 
 		def get_value(self):
 			return self
 
 		def __len__(self):
-			return length
+			return self.length
 
-	def gen_property(bit):
-		def get(self): return self.value[bit]
-		def set(self, value): self.value[bit] = value
+	def gen_property(name):
+		def get(self): return self.value[name]
+		def set(self, value): self.value[name] = value
 		return property(get, set)
-	for bit, name in enumerate(names):
-		setattr(_Bits, name, gen_property(bit))
+	for name in _Bits.names:
+		setattr(_Bits, name, gen_property(name))
 
-	_Bits.__name__ = '{}_Bits'.format(len(names))
+	_Bits.__name__ = '{}_Bits'.format(len(name_list))
 	return _Bits
 
 
@@ -220,7 +237,7 @@ class Sequence(DataType):
 	@classmethod
 	def bitnames(cls):
 		"""Returns a list of the attr names of each bittype field, or None if not a bittype"""
-		return [datatype._names if issubclass(datatype, BitsType) else None for datatype in cls.types()]
+		return [datatype.names if issubclass(datatype, BitsType) else None for datatype in cls.types()]
 
 	def __init__(self, *args, **kwargs):
 		"""This constructor takes field values as both ordered args and kwargs.
@@ -275,7 +292,7 @@ class Sequence(DataType):
 				kwargs[name] = value
 			if bitnames is not None:
 				# map BitType values to bit flag names and update kwargs
-				kwargs.update(dict(zip(bitnames, value.value)))
+				kwargs.update(dict(zip(bitnames, value.value_list)))
 		return cls(**kwargs), data
 
 	def __len__(self):
