@@ -1,4 +1,5 @@
 
+from grabbit.errors import AMQPError
 from grabbit.frames import Method, Short, ShortString
 
 
@@ -37,7 +38,10 @@ class CloseMethod(Method):
 		if code is None:
 			# second form
 			if error:
-				code, reason = error.code, str(error)
+				code = error.code
+				# allow reason to come from error.reason if present (ie. if error is an instance)
+				# or error.__doc__ otherwise (ie. if error is a class)
+				reason = getattr(error, 'reason', error.__doc__)
 			else:
 				code, reason = 0, ''
 			if method:
