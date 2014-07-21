@@ -86,10 +86,10 @@ class Frame(DataType):
 	FRAME_END = '\xCE'
 	METHOD_TYPE, HEADER_TYPE, BODY_TYPE, HEARTBEAT_TYPE = range(1, 5)
 	payload_types = {
-		1: MethodPayload,
-		2: ContentHeaderPayload,
-		3: ContentPayload,
-		4: HeartbeatPayload,
+		METHOD_TYPE: MethodPayload,
+		HEADER_TYPE: ContentHeaderPayload,
+		BODY_TYPE: ContentPayload,
+		HEARTBEAT_TYPE: HeartbeatPayload,
 	}
 
 	def __init__(self, type, channel, *payload):

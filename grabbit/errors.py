@@ -1,8 +1,9 @@
 
 from grabbit.common import get_all_subclasses
 
-class AMQPError(Exception):
-	code = NotImplemented
+
+class GRabbitError(Exception):
+	"""Superclass for all grabbit-defined exceptions."""
 
 	def __init__(self, reason=None, **data):
 		"""Reason is an optional error message, which may be more specific than the default.
@@ -12,6 +13,23 @@ class AMQPError(Exception):
 		self.reason = reason
 		self.data = data
 
+	def __eq__(self, other):
+		return type(self) == type(other) and self.reason == other.reason and self.data == other.data
+
+	def __str__(self):
+		s = "{cls.__name__}: {self.reason} (extra data: {self.data!r})".format(self=self, cls=type(self))
+		if self.args:
+			s += " ({})".format(', '.join(map(repr, self.args)))
+
+
+class AMQPError(GRabbitError):
+	"""Exceptions that map explicitly to an error code defined by AMQP.
+	Automatically includes the protocol's numeric code in extra data."""
+	code = NotImplemented
+
+	def __init__(self, reason=None, **data):
+		super(AMQPError, self).__init__(reason, code=self.code, **data)
+
 	@classmethod
 	def from_code(cls, code):
 		"""Look up error class based on code."""
@@ -20,13 +38,6 @@ class AMQPError(Exception):
 				return subcls
 		raise ValueError("No known subclass for code: {!r}".format(code))
 
-	def __eq__(self, other):
-		return type(self) == type(other) and self.reason == other.reason and self.data == other.data
-
-	def __str__(self):
-		s = "{cls.__name__}: {self.reason} (extra data: {self.data!r})".format(self=self, cls=type(self))
-		if self.args:
-			s += " ({})".format(', '.join(map(repr, self.args)))
 
 class ChannelError(AMQPError):
 	"""Class of errors which abort the channel"""
@@ -94,3 +105,7 @@ class NotImplemented(ConnectionError):
 class InternalError(ConnectionError):
 	"""Server suffered an internal error"""
 	code = 541
+
+
+class AuthFailed(GRabbitError):
+	"""Failed to authenticate with the server"""
