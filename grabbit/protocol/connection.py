@@ -111,9 +111,23 @@ class Connection(object):
 		"""Enqueue a method to be sent on given channel. Other args as per send()"""
 		self.send(Frame(Frame.METHOD_TYPE, channel, method), block=block, callback=callback)
 
+	def send_content(self, channel, method_class, payload, properties, block=False):
+		"""Enqueue a content payload (aka. a message) to be sent on given channel.
+		Block is as per send()."""
+		waiter = self.send(Frame(Frame.HEADER_TYPE, channel, method_class, len(payload), properties))
+		frame_max = ??? # include header?
+		while payload:
+			this_frame, payload = payload[:frame_max], payload[frame_max:]
+			waiter = self.send(Frame(Frame.BODY_TYPE, channel, this_frame))
+		if block:
+			waiter.get() # wait for last message to send
+		else:
+			return waiter
+
 	def send(self, frame, block=False, callback=None):
 		"""Enqueue a frame to be sent. If block=True, don't return until sent.
-		If callback is given, it will be called when the frame is sent."""
+		If callback is given, it will be called when the frame is sent.
+		If block is False, returns a greenlet which will run until frame is sent."""
 		sent = gevent.event.Event()
 		# we ensure we're blocking on a self.greenlets greenlet,
 		# so we receive errors reported to self.error()
@@ -125,6 +139,12 @@ class Connection(object):
 			self.send_queue.put((frame, sent))
 		if block:
 			waiter.get()
+		else:
+			return waiter
+
+	def send_sync_method(self, channel, method):
+		"""As per send_method, but block until the associated reply is received, and return it."""
+		...
 
 	def _send_waiter(self, sent, callback):
 		sent.wait()
@@ -145,11 +165,8 @@ class Connection(object):
 
 	def _send_loop(self):
 		for frame, sent in self.send_queue:
-			self.socket.sendall(frame.pack())
+			self._send(frame)
 			sent.set()
 
-	def send_sync_method(self, channel, method):
-		"""As per send_method, but block until the associated reply is received, and return it."""
-		...
 
 
