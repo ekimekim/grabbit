@@ -52,7 +52,9 @@ class Connection(object):
 		self.socket = None
 		self.socket_lock = gevent.lock.RLock()
 		self.send_queue = gevent.queue.Queue()
-		self.deferred_sends = []
+
+		self.channels = WeakValueDict()
+		self.control_channel = AdminChannel(self)
 
 		self.connect()
 
@@ -77,8 +79,6 @@ class Connection(object):
 		# TODO send-and-get Open->OpenOk
 
 		self.connected.set()
-		for item in self.deferred_sends:
-			self.send_queue.put(item)
 
 	def close(self, error=None, method=None):
 		"""Gracefully close the connection, optionally in response to a given error
@@ -87,7 +87,7 @@ class Connection(object):
 		if not error:
 			error = ConnectionForced()
 		self.closed = True
-		self.send_sync_method(methods.connection.Close(error=error, method=method))
+		self.channels[0].send_sync_method(methods.connection.Close(error=error, method=method))
 		self.error(error)
 
 	def __del__(self):
@@ -107,23 +107,6 @@ class Connection(object):
 				self.on_error(ex)
 		_error_worker.get()
 
-	def send_method(self, channel, method, block=False, callback=None):
-		"""Enqueue a method to be sent on given channel. Other args as per send()"""
-		self.send(Frame(Frame.METHOD_TYPE, channel, method), block=block, callback=callback)
-
-	def send_content(self, channel, method_class, payload, properties, block=False):
-		"""Enqueue a content payload (aka. a message) to be sent on given channel.
-		Block is as per send()."""
-		waiter = self.send(Frame(Frame.HEADER_TYPE, channel, method_class, len(payload), properties))
-		frame_max = ??? # include header?
-		while payload:
-			this_frame, payload = payload[:frame_max], payload[frame_max:]
-			waiter = self.send(Frame(Frame.BODY_TYPE, channel, this_frame))
-		if block:
-			waiter.get() # wait for last message to send
-		else:
-			return waiter
-
 	def send(self, frame, block=False, callback=None):
 		"""Enqueue a frame to be sent. If block=True, don't return until sent.
 		If callback is given, it will be called when the frame is sent.
@@ -132,19 +115,19 @@ class Connection(object):
 		# we ensure we're blocking on a self.greenlets greenlet,
 		# so we receive errors reported to self.error()
 		waiter = self.greenlets.spawn(self._send_waiter, sent, callback)
-		if not self.connected.is_set() and frame.channel != 0:
-			# non-setup operations during setup go onto a deferred queue for later enqueuing proper
-			self.deferred_sends.append((frame, sent))
-		else:
-			self.send_queue.put((frame, sent))
+		self.send_queues[frame.channel].put((frame, sent))
 		if block:
 			waiter.get()
 		else:
 			return waiter
 
-	def send_sync_method(self, channel, method):
-		"""As per send_method, but block until the associated reply is received, and return it."""
-		...
+	def get_next_channel(self):
+		"""Return next available channel id"""
+		channel_max = self.tune_params['channel_max'] or ??? # TODO max when it's 0
+		for x in range(channel_max):
+			if x not in self.channels:
+				return x
+		raise ??? # TODO
 
 	def _send_waiter(self, sent, callback):
 		sent.wait()
@@ -152,7 +135,7 @@ class Connection(object):
 			callback()
 
 	def _send(self, frame):
-		"""Actually send the frame."""
+		"""Send an individaual frame, blocking until fully sent."""
 		# if we get killed halfway through the operation, we want it to continue
 		# until finished (half-sent frames cannot be recovered from).
 		# we create background task to do the sending, then wait for it to finish.
@@ -167,6 +150,3 @@ class Connection(object):
 		for frame, sent in self.send_queue:
 			self._send(frame)
 			sent.set()
-
-
-
