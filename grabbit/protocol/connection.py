@@ -1,4 +1,8 @@
 
+# TODO imports
+# TODO recv loop (dispatch to channels)
+# TODO errors in important greenlets need to trigger connection.error()
+
 
 class Connection(object):
 	"""Represents a connection between a server and the client.
@@ -6,6 +10,12 @@ class Connection(object):
 	You can wait for a connection to be established with:
 		connection.connected.wait()
 	or simply start performing operations - they will be deferred until they can be dispatched.
+
+	connection.on_error is a set of callbacks.
+	You may add callbacks to register them to be called if a fatal error occurs.
+	These callbacks are called in seperate greenlets and should take args (connection, exception).
+	Note that a graceful connection.close(error) WILL cause the callbacks to be called.
+	A causeless connection.close() will have the error set to None.
 	"""
 
 	# default properties for client_properties
@@ -13,9 +23,10 @@ class Connection(object):
 		# TODO
 	}
 
-	def __init__(self, vhost='/', security_handlers=[], locales=[], frame_size_max=0,
+	def __init__(self, host, vhost='/', port=5672, security_handlers=[], locales=[], frame_size_max=0,
 	             heartbeat=True, on_error=None, **properties):
 		"""Args:
+			host, port: Hostname and port number. Host is required. Port defaults to 5672.
 			vhost: The virtual host to open, "/" by default.
 			security_handlers: A list of (security mechanism, response_fn, challenge_fn).
 			                   The first mechanism in the list that is supported by the server
@@ -29,11 +40,12 @@ class Connection(object):
 			frame_size_max: Maximum size in bytes for a single frame, or 0 for no limit.
 			haertbeat: Whether to enable heartbeat for this connection. Due to confusion in the spec,
 			           we cannot reliably specify the actual delay, so this is a boolean flag only.
-			on_error: Optional callback to be called if a fatal error occurs in the connection.
-			          The callback should take one arg, the error instance.
+			on_error: An optional shortcut to immediately set an error callback in connection.on_error.
 			properties: Additional information to pass as client_properties.
 			            Some values are already set by default.
 		"""
+		self.host = host
+		self.port = port
 		self.vhost = vhost
 		self.security_handlers = security_handlers
 		self.preferred_locales = locales
@@ -51,7 +63,7 @@ class Connection(object):
 		self.closed = False
 		self.socket = None
 		self.socket_lock = gevent.lock.RLock()
-		self.send_queue = gevent.queue.Queue()
+		self.send_queues = ChunkedPriorityQueue()
 
 		self.channels = WeakValueDict()
 		self.control_channel = AdminChannel(self)
@@ -61,33 +73,35 @@ class Connection(object):
 	def connect(self):
 		"""Connect to the server."""
 
-		# TODO socket connect
-
+		self.socket = socket.socket()
+		self.socket.bind((self.host, self.port))
 		self.socket.sendall(ProtocolHeader().pack())
-		self.greenlets.spawn(self._send_loop)
 
-		# TODO recv Start
-		# TODO locale
-		# TODO security
-		# TODO send StartOk
+		with self.send_queue.limit_to(0):
+			self.greenlets.spawn(self._send_loop)
 
-		# TODO call out to security handler for challenge
+			# TODO recv Start
+			# TODO locale
+			# TODO security
+			# TODO send StartOk
 
-		# TODO recv Tune
-		# TODO send TuneOk
+			# TODO call out to security handler for challenge
 
-		# TODO send-and-get Open->OpenOk
+			# TODO recv Tune
+			# TODO send TuneOk
 
-		self.connected.set()
+			# TODO send-and-get Open->OpenOk
+
+			self.connected.set()
 
 	def close(self, error=None, method=None):
 		"""Gracefully close the connection, optionally in response to a given error
 		that should be sent to the server.
 		"""
-		if not error:
-			error = ConnectionForced()
-		self.closed = True
-		self.channels[0].send_sync_method(methods.connection.Close(error=error, method=method))
+		send_error = ConnectionForced() if error is None else error
+		self.send_queue.set_limit(-1)
+		self.channels[0].send_sync_method(methods.connection.Close(error=send_error, method=method),
+						                  priority=-1)
 		self.error(error)
 
 	def __del__(self):
@@ -95,27 +109,38 @@ class Connection(object):
 
 	def error(self, ex):
 		"""React to a fatal error - halt operations and close the socket"""
+		if self.closed:
+			return # we're already erroring
+		self.closed = True
+
 		# the current greenlet may be in self.greenlets, so to avoid killing ourselves we spawn
 		# a seperate greenlet to do the job
-		self.closed = True
 		@gevent.spawn
 		def _error_worker():
-			# stop any pending operations by sending ex
-			self.greenlets.kill(ex, block=False)
+			# stop any pending operations by sending ex. 
+			self.greenlets.kill(ex if ex else GreenletExit, block=False)
 			self.socket.close()
-			if self.on_error:
-				self.on_error(ex)
+			for cb in self.on_error:
+				gevent.spawn(cb, self, ex)
 		_error_worker.get()
 
-	def send(self, frame, block=False, callback=None):
+	def send(self, frame, block=False, callback=None, priority=16):
 		"""Enqueue a frame to be sent. If block=True, don't return until sent.
 		If callback is given, it will be called when the frame is sent.
-		If block is False, returns a greenlet which will run until frame is sent."""
+		If block is False, returns a greenlet which will run until the frame is sent.
+		Messages sent at the same priority will be sent in the order send() was called.
+		Messages of a lower priority will be sent before any enqueued messages of a higher priority.
+		Priorities are defined as follows:
+			-1: Reserved for connection close and other exceptional events.
+			0: High priority protocol tasks. Users MUST NOT use this or any lower priority.
+			16: Normal operation (the default).
+			32: Reccomended setting for high-message-count operations, to avoid starving smaller messages.
+		"""
 		sent = gevent.event.Event()
 		# we ensure we're blocking on a self.greenlets greenlet,
 		# so we receive errors reported to self.error()
 		waiter = self.greenlets.spawn(self._send_waiter, sent, callback)
-		self.send_queues[frame.channel].put((frame, sent))
+		self.send_queues[frame.channel].put((priority, (frame, sent)))
 		if block:
 			waiter.get()
 		else:
@@ -123,30 +148,30 @@ class Connection(object):
 
 	def get_next_channel(self):
 		"""Return next available channel id"""
-		channel_max = self.tune_params['channel_max'] or ??? # TODO max when it's 0
+		channel_max = self.tune_params['channel_max'] or 65535 # max implied by data type
 		for x in range(channel_max):
 			if x not in self.channels:
 				return x
-		raise ??? # TODO
+		raise NoMoreChannels(channel_max=channel_max, connection=self)
 
 	def _send_waiter(self, sent, callback):
 		sent.wait()
 		if callback:
 			callback()
 
-	def _send(self, frame):
+	def _send(self, frame, sent):
 		"""Send an individaual frame, blocking until fully sent."""
 		# if we get killed halfway through the operation, we want it to continue
 		# until finished (half-sent frames cannot be recovered from).
-		# we create background task to do the sending, then wait for it to finish.
-		def _send_worker(socket):
+		# we create a background task to do the sending, then wait for it to finish.
+		def _send_worker():
 			# Note we capture the value of socket here, as by the time this runs,
 			# self.socket may be None.
 			with self.socket_lock:
-				socket.sendall(frame.pack())
-		gevent.spawn(_send_worker, self.socket).get()
+				self.socket.sendall(frame.pack())
+			sent.set()
+		gevent.spawn(_send_worker).get()
 
 	def _send_loop(self):
-		for frame, sent in self.send_queue:
-			self._send(frame)
-			sent.set()
+		for priority, (frame, sent) in self.send_queue:
+			self._send(frame, sent)
