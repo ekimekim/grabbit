@@ -112,7 +112,7 @@ class Open(ConnectionMethod):
 	response = OpenOk
 	fields = [
 		('virtual_host', ShortString),
-		(None, ShortString),
+		(None, ShortString, ''),
 		(None, Bits(None)),
 	]
 
