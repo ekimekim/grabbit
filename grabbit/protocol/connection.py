@@ -196,3 +196,19 @@ class Connection(object):
 		except Exception as ex:
 			self.error(ex)
 			raise
+
+	def _recv_loop(self):
+		buf = ''
+		last_read = True # force True on first loop, thereafter quit if nothing read
+		while last_read:
+			last_read = self.socket.recv(4096)
+			buf += last_read
+			try:
+				frame, buf = Frame.unpack(buf)
+			except Incomplete:
+				continue
+			# TODO handle syntax error with close()
+			if frame.channel not in self.channels:
+				pass # TODO handle bad channel
+			self.channels[frame.channel].recv_frame(frame)
+		# socket was closed, TODO what do
