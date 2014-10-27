@@ -60,7 +60,6 @@ class Connection(object):
 
 		self.greenlets = gevent.pool.Group()
 		self.connected = gevent.event.Event()
-		self.closed = False
 		self.socket = None
 		self.socket_lock = gevent.lock.RLock()
 		self.send_queues = ChunkedPriorityQueue()
@@ -94,14 +93,19 @@ class Connection(object):
 
 			self.connected.set()
 
-	def close(self, error=None, method=None):
+	def close(self, error=None, method=None, wait_for_ok=True):
 		"""Gracefully close the connection, optionally in response to a given error
 		that should be sent to the server.
+		wait_for_ok=False causes the socket to be closed immediately, without waiting for
+		a CloseOk. It should only be used in situations where messages can no longer be received.
+		close() should not be used if messages can no longer be sent - use error() instead.
 		"""
 		send_error = ConnectionForced() if error is None else error
-		self.send_queue.set_limit(-1)
-		self.channels[0].send_sync_method(methods.connection.Close(error=send_error, method=method),
-						                  priority=-1)
+		self.send_queue.set_limit(-1) # now no more messages can be sent except Close-related
+		close_method = methods.connection.Close(error=send_error, method=method)
+		waiter = self.control_channel.send_sync_method(close_method, priority=-1, block=False)
+		if wait_for_ok:
+			waiter.get()
 		self.error(error)
 
 	def __del__(self):
@@ -109,9 +113,12 @@ class Connection(object):
 
 	def error(self, ex):
 		"""React to a fatal error - halt operations and close the socket"""
-		if self.closed:
-			return # we're already erroring
-		self.closed = True
+		if self.finished.ready() and self.finished.exception == ex:
+			return # don't report errors we raised in the process of running error()
+		if ex:
+			self.finished.set_exception(ex)
+		else:
+			self.finished.set(None)
 
 		# the current greenlet may be in self.greenlets, so to avoid killing ourselves we spawn
 		# a seperate greenlet to do the job
@@ -136,11 +143,11 @@ class Connection(object):
 			16: Normal operation (the default).
 			32: Reccomended setting for high-message-count operations, to avoid starving smaller messages.
 		"""
-		sent = gevent.event.Event()
+		sent = gevent.event.AsyncResult() # AsyncResult lets us propogate an exception if needed
 		# we ensure we're blocking on a self.greenlets greenlet,
 		# so we receive errors reported to self.error()
 		waiter = self.greenlets.spawn(self._send_waiter, sent, callback)
-		self.send_queues[frame.channel].put((priority, (frame, sent)))
+		self.send_queue.put((priority, (frame, sent)))
 		if block:
 			waiter.get()
 		else:
@@ -155,23 +162,37 @@ class Connection(object):
 		raise NoMoreChannels(channel_max=channel_max, connection=self)
 
 	def _send_waiter(self, sent, callback):
-		sent.wait()
+		sent.get()
 		if callback:
 			callback()
 
 	def _send(self, frame, sent):
-		"""Send an individaual frame, blocking until fully sent."""
+		"""Send an individaual frame, blocking until fully sent.
+		Will set exception on sent if an error occurs in packing. Will error the whole
+		connection if an error occurs in sending, as such errors are unrecoverable."""
 		# if we get killed halfway through the operation, we want it to continue
 		# until finished (half-sent frames cannot be recovered from).
 		# we create a background task to do the sending, then wait for it to finish.
 		def _send_worker():
 			# Note we capture the value of socket here, as by the time this runs,
 			# self.socket may be None.
-			with self.socket_lock:
-				self.socket.sendall(frame.pack())
-			sent.set()
+			send_started = False
+			try:
+				packed = frame.pack()
+				with self.socket_lock:
+					send_started = True
+					self.socket.sendall(packed)
+				sent.set(None)
+			except Exception as ex:
+				sent.set_exception(ex)
+				if send_started:
+					raise # partial send is important - otherwise isn't.
 		gevent.spawn(_send_worker).get()
 
 	def _send_loop(self):
-		for priority, (frame, sent) in self.send_queue:
-			self._send(frame, sent)
+		try:
+			for priority, (frame, sent) in self.send_queue:
+				self._send(frame, sent)
+		except Exception as ex:
+			self.error(ex)
+			raise
