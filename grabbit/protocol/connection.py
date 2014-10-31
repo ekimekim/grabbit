@@ -52,7 +52,7 @@ class Connection(object):
 		self.tune_params = dict(
 			channel_max = 0,
 			frame_size_max = frame_size_max,
-			heartbeat = heartbeat,
+			heartbeat_delay = heartbeat,
 		)
 		self.client_properties = self.defualt_properties.copy()
 		self.client_properties.update(properties)
@@ -72,26 +72,51 @@ class Connection(object):
 	def connect(self):
 		"""Connect to the server."""
 
-		self.socket = socket.socket()
-		self.socket.bind((self.host, self.port))
-		self.socket.sendall(ProtocolHeader().pack())
+		try:
+			self.socket = socket.socket()
+			self.socket.bind((self.host, self.port))
+			self.socket.sendall(ProtocolHeader().pack())
 
-		with self.send_queue.limit_to(0):
-			self.greenlets.spawn(self._send_loop)
+			with self.send_queue.limit_to(0): # block sending "normal" messages until setup finished
+				channel = self.control_channel # shortcut variable because lazy, readable
+				self.greenlets.spawn(self._send_loop)
 
-			# TODO recv Start
-			# TODO locale
-			# TODO security
-			# TODO send StartOk
+				start = channel.wait_for(method=methods.connection.Start)
+				self.server_version = start.version
+				if self.server_version not in self.SUPPORTED_VERSIONS:
+					raise BadServerVersion(version=self.server_version)
 
-			# TODO call out to security handler for challenge
+				# TODO locale = ???
+				# TODO security_mech, first_response = ???
+				channel.send(methods.connection.StartOk(self.client_properties,
+														security_type,
+														security_response,
+														locale))
 
-			# TODO recv Tune
-			# TODO send TuneOk
+				# TODO call out to security handler for challenge
 
-			# TODO send-and-get Open->OpenOk
+				tune = channel.wait_for(method=methods.connection.Tune)
+				for param in ('channel_max', 'frame_size_max', 'heartbeat_delay'):
+					ours = self.tune_params[param]
+					theirs = getattr(tune, param)
+					if param == 'heartbeat_delay': # special case, see help(TuneOk)
+						self.tune_params[param] = theirs if ours and theirs else 0
+					else:
+						self.tune_params[param] = ours if ours != 0 and (theirs == 0 or ours < theirs)
+						                          else theirs
+				channel.send(methods.connection.TuneOk(**self.tune_params)
 
-			self.connected.set()
+				channel.send_sync(methods.connection.Open(self.vhost))
+
+				self.connected.set()
+		except Exception as ex:
+			self.error(ex)
+			raise
+
+	def wait(self):
+		"""Block until connection is closed. Raises if connection fails.
+		This is the reccomended way to "block forever" when application setup is complete."""
+		self.finished.get()
 
 	def close(self, error=None, method=None, wait_for_ok=True):
 		"""Gracefully close the connection, optionally in response to a given error
@@ -100,16 +125,19 @@ class Connection(object):
 		a CloseOk. It should only be used in situations where messages can no longer be received.
 		close() should not be used if messages can no longer be sent - use error() instead.
 		"""
-		send_error = ConnectionForced() if error is None else error
-		self.send_queue.set_limit(-1) # now no more messages can be sent except Close-related
-		close_method = methods.connection.Close(error=send_error, method=method)
-		waiter = self.control_channel.send_sync_method(close_method, priority=-1, block=False)
-		if wait_for_ok:
-			waiter.get()
+		if not self.finished.ready():
+			# only attempt a graceful close if we aren't already shutting down
+			send_error = ConnectionForced() if error is None else error
+			self.send_queue.set_limit(-1) # now no more messages can be sent except Close-related
+			close_method = methods.connection.Close(error=send_error, method=method)
+			waiter = self.control_channel.send_sync(close_method, priority=-1, block=False)
+			if wait_for_ok:
+				waiter.get()
 		self.error(error)
 
 	def __del__(self):
-		self.close()
+		if not self.finished.ready():
+			self.close()
 
 	def error(self, ex):
 		"""React to a fatal error - halt operations and close the socket"""
@@ -200,15 +228,24 @@ class Connection(object):
 	def _recv_loop(self):
 		buf = ''
 		last_read = True # force True on first loop, thereafter quit if nothing read
-		while last_read:
-			last_read = self.socket.recv(4096)
-			buf += last_read
-			try:
-				frame, buf = Frame.unpack(buf)
-			except Incomplete:
-				continue
-			# TODO handle syntax error with close()
-			if frame.channel not in self.channels:
-				pass # TODO handle bad channel
-			self.channels[frame.channel].recv_frame(frame)
-		# socket was closed, TODO what do
+		try:
+			while last_read:
+				last_read = self.socket.recv(4096)
+				buf += last_read
+				try:
+					frame, buf = Frame.unpack(buf)
+				except Incomplete:
+					continue
+				except AMQPSyntaxError as ex:
+					method = ex.data.get('method', None)
+					self.close(ex, method)
+					return
+				if frame.channel not in self.channels:
+					method = frame.payload.method if frame.type == Frame.METHOD_TYPE else None
+					self.close(CommandInvalid("Channel {} is not open".format(frame.channel), frame=frame), method)
+					return
+				self.channels[frame.channel].recv_frame(frame)
+			# socket was unexpectedly closed
+			raise ???
+		except Exception as ex:
+			self.close(ex, wait_for_ok=False) # don't wait for close as recv no longer works!
