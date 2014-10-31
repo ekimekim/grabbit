@@ -1,5 +1,6 @@
 
 from grabbit.common import get_all_subclasses
+from grabbit.errors import GRabbitError
 
 from datatypes import Sequence
 
@@ -26,3 +27,10 @@ class Method(Sequence):
 		else:
 			raise ValueError("Unknown method for class {} and method_id {}".format(method_class, method_id))
 
+	@classmethod
+	def unpack(cls, data):
+		try:
+			return super(Method, cls).unpack(data)
+		except GRabbitError as ex:
+			ex.data.setdefault('method', cls)
+			raise
