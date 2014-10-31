@@ -1,5 +1,6 @@
 
 import gevent.queue
+from collections import defaultdict, deque
 
 
 def get_all_subclasses(cls):
