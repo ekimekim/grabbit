@@ -1,5 +1,6 @@
 
 from grabbit.common import get_all_subclasses
+from grabbit.errors import AMQPSyntaxError
 
 from datatypes import DataType, Short
 
@@ -72,15 +73,19 @@ class Properties(DataType):
 		values = {}
 		property_index = -1
 		list_items = []
+		full_mask = [] # this is just for better error reporting
 		while True:
 			mask, data = Short.unpack(data)
 			mask = mask.value
+			full_mask.append(mask)
 			for bit in range(15, 0, -1):
 				property_index += 1
 				if not mask & (1 << bit):
 					continue
 				if property_index >= len(cls.property_map):
-					raise ValueError("Property bit out of range for {}".format(cls.__name__))
+					raise AMQPSyntaxError(("{} mask has set bit {}, but only {} properties are defined"
+					                  ).format(cls.__name__, property_index, len(cls.property_map)),
+					                  data=full_mask, datatype=cls)
 				name, datatype = cls.property_map[property_index]
 				if datatype == PropertyBit:
 					# special case for PropertyBit - if present, it means True, no list entry

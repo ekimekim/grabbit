@@ -3,6 +3,8 @@ import sys
 import string
 from decimal import Decimal as PyDecimal
 
+from grabbit.errors import AMQPSyntaxError
+
 from datatypes import DataType, Octet, FromStruct, ShortString, LongString, Timestamp
 from common import eat, Incomplete
 
@@ -88,10 +90,10 @@ class FieldName(ShortString):
 	def pack(self):
 		first, rest = eat(self.value, 1)
 		if first not in self.FIRSTCHARS:
-			raise ValueError("Illegal character {} as first character of field name".format(first))
+			raise ValueError("Illegal character {!r} as first character of field name".format(first))
 		for c in rest:
 			if c not in self.CHARS:
-				raise ValueError("Illegal character {} in field name".format(c))
+				raise ValueError("Illegal character {!r} in field name".format(c))
 		return super(FieldName, self).pack()
 
 
@@ -120,7 +122,7 @@ class FieldArray(DataType):
 				values.append(value)
 		except Incomplete:
 			_, _, tb = sys.exc_info()
-			ex = ValueError("FieldArray payload reported Incomplete")
+			ex = AMQPSyntaxError("Field array payload expected more data", data=payload, datatype=cls)
 			raise type(ex), ex, tb
 		return cls(values), data
 
@@ -155,7 +157,7 @@ class FieldTable(DataType):
 				values[name] = value
 		except Incomplete:
 			_, _, tb = sys.exc_info()
-			ex = ValueError("FieldTable payload reported Incomplete")
+			ex = AMQPSyntaxError("Field table payload expected more data", data=payload, datatype=cls)
 			raise type(ex), ex, tb
 		return cls(values), data
 

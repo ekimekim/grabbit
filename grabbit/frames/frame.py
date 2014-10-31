@@ -1,5 +1,7 @@
 import sys
 
+from grabbit.errors import FrameError, AMQPSyntaxError
+
 from datatypes import DataType, Octet, Short, Long, LongLong, Sequence
 from properties import Properties
 from common import eat, Incomplete
@@ -113,16 +115,18 @@ class Frame(DataType):
 		payload, data = eat(data, header.size)
 		frame_end, data = eat(data, 1)
 		if frame_end != cls.FRAME_END:
-			raise ValueError("Framing error: Frame ended with {!r}, not {!r}".format(frame_end, cls.FRAME_END))
+			raise FrameError("Framing error: Frame ended with {!r}, not {!r}".format(frame_end, cls.FRAME_END),
+			                 data=frame_end, header=header, payload=payload)
 		payload_type = cls.payload_types[header.type]
 		try:
 			payload, leftover = payload_type.unpack(payload)
 		except Incomplete:
 			_, _, tb = sys.exc_info()
-			ex = ValueError("Frame payload reported Incomplete")
+			ex = AMQPSyntaxError("Frame payload expected more data", data=payload, datatype=payload_type)
 			raise type(ex), ex, tb
 		if leftover:
-			raise ValueError("Payload had excess bytes: {!r}".format(leftover))
+			raise AMQPSyntaxError("Frame payload had excess bytes: {!r}".format(leftover), data=leftover,
+			                  datatype=payload_type, payload=payload)
 		return cls(header.type, header.channel, payload), data
 
 	def get_value(self):

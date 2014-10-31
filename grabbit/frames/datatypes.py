@@ -2,6 +2,7 @@ import struct
 import math
 
 from grabbit.common import classproperty
+from grabbit.errors import FrameError
 from common import eat
 
 class DataType(object):
@@ -164,6 +165,7 @@ def Bits(*name_list):
 					values.append(bool(mask & (1 << bit)))
 			# strip out reserved fields and the pad bits at the end
 			values = [value for name, value in zip(cls.all_names, values) if name is not None]
+			assert len(values) == len(cls.names)
 			return cls(values), data
 
 		def get_value(self):
@@ -196,7 +198,7 @@ class ProtocolHeader(DataType):
 	def unpack(cls, data):
 		amqp, data = eat(data, 4)
 		if amqp != "AMQP":
-			raise ValueError('Invalid data: Data did not begin with "AMQP"')
+			raise FrameError('protocol header: Data did not begin with "AMQP"', data=amqp)
 		proto_id, data = eat(data, 1)
 		proto_version, data = eat(data, 3)
 		return cls(proto_id, proto_version), data
