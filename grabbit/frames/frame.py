@@ -131,3 +131,8 @@ class Frame(DataType):
 
 	def get_value(self):
 		return self
+
+	@classmethod
+	def size_without_payload(cls):
+		"""The size in bytes of the non-payload parts of a Frame. This value is a constant."""
+		return sum(datatype.len() for datatype in FrameHeader.types()) + len(cls.FRAME_END)

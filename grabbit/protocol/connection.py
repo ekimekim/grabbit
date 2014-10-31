@@ -72,6 +72,8 @@ class Connection(object):
 		self.vhost = vhost
 		self.security_handlers = map(_normalize_handler, security_handlers)
 		self.preferred_locales = locales
+		if 0 < frame_size_max <= Frame.size_without_payload():
+			raise ValueError("Frame size max {} too small to fit any content".format(frame_size_max))
 		self.tune_params = dict(
 			channel_max = 0,
 			frame_size_max = frame_size_max,
@@ -136,6 +138,9 @@ class Connection(object):
 					challenge()
 
 				tune = channel.wait_for(method=methods.connection.Tune)
+				if 0 < tune.frame_size_max <= Frame.size_without_payload():
+					raise AMQPSyntaxError("frame-max {} is too small to send any content".format(tune.frame_size_max),
+					                      method=tune, frame_size_max=tune.frame_size_max)
 				# reconcile our tune_params with contents of tune method
 				for param in ('channel_max', 'frame_size_max', 'heartbeat_delay'):
 					ours = self.tune_params[param]
@@ -313,5 +318,8 @@ class ControlChannel(Channel):
 		pass # Control channel is created automatically, and cannot be Open()ed
 
 	def close(self, error=None, method=None):
-		# This should never happen. But if it does, take it to mean a connection close
+		# A connection close and a channel close mean the same thing for this channel
 		self.connection.close(error, method)
+
+	# TODO on recv Close, reply CloseOk and call error()
+	# ??? Make that common to Channels, and ControlChannel treats Conn level Closes as local closes?
