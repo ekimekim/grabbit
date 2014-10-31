@@ -50,7 +50,7 @@ class CloseMethodTests(TestCase):
 		self.assertIsInstance(close.error, TestError)
 		self.assertEqual(close.error.reason, close.reason)
 		self.assertEqual(close.method, TestBadMethod)
-		self.assertEqual(close.error.data, {'method': TestBadMethod})
+		self.assertEqual(close.error.data, {'code': TestError.code, 'method': TestBadMethod})
 
 	def test_no_properties(self):
 		close = self.construct(False, False)
