@@ -78,7 +78,9 @@ class PreconditionFailed(ChannelError):
 class FrameError(ConnectionError):
 	"""Malformed frame received"""
 	code = 501
-class SyntaxError(ConnectionError):
+class AMQPSyntaxError(ConnectionError):
+	# Note: In the spec, this is simply a "syntax-error".
+	# The name is to avoid clashing with the python SyntaxError builtin.
 	"""Frame contained illegal value"""
 	code = 502
 class CommandInvalid(ConnectionError):
