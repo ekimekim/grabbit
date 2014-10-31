@@ -111,3 +111,9 @@ class InternalError(ConnectionError):
 
 class AuthFailed(GRabbitError):
 	"""Failed to authenticate with the server"""
+
+class BadServerVersion(GRabbitError):
+	"""The server demanded a protocol version we do not support"""
+
+class ServerClosed(GRabbitError):
+	"""Server unexpectedly closed the connection"""
