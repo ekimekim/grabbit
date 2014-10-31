@@ -1,4 +1,6 @@
 
+import gevent.queue
+
 
 def get_all_subclasses(cls):
 	"""Recursive method to find all decendents of cls, ie.
