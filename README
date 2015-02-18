@@ -1,0 +1,15 @@
+(placeholder README, will expand later)
+
+grabbit is a pure-python AMQP client implementation using gevent.
+It implements RabbitMQ extensions and, where the spec is ambigouous,
+favors RabbitMQ support. This is noted in comments where it occurs.
+
+The large scale structure is of several layered sublibraries:
+* grabbit.frames: This library deals with the serialization of data and
+  the raw wire format. It exposes means of sending individual frames
+  and defining classes and methods.
+* grabbit.methods: Defines the standard AMQP methods (as well as RabbitMQ extensions),
+  exposing means to create method calls with python data and serialize them.
+* grabbit.protocol: Does the actual logic of stringing together methods and other frames
+  into a coherent connection object which can perform basic operations and handle errors.
+* ???: Provide a nice user-facing abstraction on top of operations?
