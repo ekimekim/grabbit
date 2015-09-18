@@ -20,27 +20,26 @@ class MethodPayload(Sequence):
 	fields = [
 		('method_class', Short),
 		('method_id', Short),
+		('method', Method),
 	]
 
 	def __init__(self, *args):
 		"""Args can either be a single arg Method, or method_class, method_id, *args
 		where *args are passed onto the correct Method constructor"""
 		if len(args) == 1 and isinstance(args[0], Method):
-			self.method, = args
-			method_class, method_id = self.method.method_class, self.method.method_id
+			method, = args
+			method_class, method_id = method.method_class, method.method_id
 		else:
 			if len(args) < 2:
 				raise TypeError("If no Method given, method_class and method_id must be provided")
 			method_class, method_id = args[:2]
 			args = args[2:]
-			self.method = Method.from_id(method_class, method_id)(*args)
-		super(MethodPayload, self).__init__(method_class, method_id)
-
-	def pack(self):
-		return super(MethodPayload, self).pack() + self.method.pack()
+			method = Method.from_id(method_class, method_id)(*args)
+		super(MethodPayload, self).__init__(method_class, method_id, method)
 
 	@classmethod
 	def unpack(cls, data):
+		# we special-case as we need to look up correct method class
 		method_class, data = Short.unpack(data)
 		method_id, data = Short.unpack(data)
 		method_type = Method.from_id(method_class.value, method_id.value)
@@ -63,7 +62,7 @@ class ContentHeaderPayload(Sequence):
 
 	@classmethod
 	def unpack(cls, data):
-		# we special-case as we need properties unpack class to change according to method_class
+		# we special-case as we need to look up correct properties class
 		method_class, data = Short.unpack(data)
 		method_class = method_class.value
 		weight, data = Short.unpack(data)
