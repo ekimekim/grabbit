@@ -76,17 +76,24 @@ class Decimal(DataType):
 class Void(DataType):
 	def __init__(self):
 		super(Void, self).__init__(None)
+
 	def pack(self):
 		return ''
+
 	@classmethod
 	def unpack(cls, data):
 		return Void(), data
 
+	def __len__(self):
+		return 0
+
 
 class FieldName(ShortString):
 	len_max = 128
+
 	FIRSTCHARS = set(string.letters) | {'$', '#'}
 	CHARS = FIRSTCHARS | set(string.digits) | {'_'}
+
 	def pack(self):
 		first, rest = eat(self.value, 1)
 		if first not in self.FIRSTCHARS:
@@ -99,6 +106,10 @@ class FieldName(ShortString):
 
 class FieldArray(DataType):
 	"""Expects an iterable value"""
+	def __init__(self, value):
+		value = list(value)
+		super(FieldArray, self).__init__(value)
+
 	def pack(self):
 		payload = ''
 		for item in self.value:
@@ -170,20 +181,20 @@ def field_type_coerce(value):
 	We prefer consistency over the smallest possible representation.
 	We then return the coverted value.
 	"""
-	type_map = {
-		bool: Boolean,
-		int: SignedLongLong,
-		long: SignedLongLong,
-		float: Double,
-		PyDecimal: Decimal,
-		str: LongString,
-		dict: FieldTable
-	}
+	type_map = [
+		(bool, Boolean), # note bool needs to precede int as it is a subclass
+		(int, SignedLongLong),
+		(long, SignedLongLong),
+		(float, Double),
+		(PyDecimal, Decimal),
+		(str, LongString),
+		(dict, FieldTable),
+	]
 	if isinstance(value, unicode):
 		# if you care about your encoding, you should be doing it yourself
 		# as a sensible default, we use UTF-8
 		value = value.encode('utf-8')
-	for type, datatype in type_map.items():
+	for type, datatype in type_map:
 		if isinstance(value, type):
 			return datatype(value)
 	if value is None:
