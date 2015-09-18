@@ -8,14 +8,11 @@ from common import TEST_METHOD_CLASS, TestMethod, FramesTestCase
 
 class FrameTests(FramesTestCase):
 
-	def check(self, frame, expected):
-		self.assertEquals(frame.pack(), expected)
-		unpacked, leftover = Frame.unpack(expected)
-		self.assertEquals(unpacked, frame)
-		self.assertEquals(leftover, '')
+	def check(self, args, expected):
+		super(FrameTests, self).check(Frame, expected, *args)
 
 	def test_method_frame(self):
-		frame = Frame(Frame.METHOD_TYPE, 1, TestMethod('hello world', 1234))
+		args = Frame.METHOD_TYPE, 1, TestMethod('hello world', 1234)
 		expected = (
 			"\x01" # frame type: method
 			"\x00\x01" # channel: 1
@@ -28,10 +25,10 @@ class FrameTests(FramesTestCase):
 					"\x00\x00\x00\x00\x00\x00\x04\xd2" # bar: 1234
 			"\xCE" # frame end
 		)
-		self.check(frame, expected)
+		self.check(args, expected)
 
 	def test_header_frame(self):
-		frame = Frame(Frame.HEADER_TYPE, 1, TEST_METHOD_CLASS, 42, {"an_int": 7, "a_bool": True})
+		args = Frame.HEADER_TYPE, 1, TEST_METHOD_CLASS, 42, {"an_int": 7, "a_bool": True}
 		expected = (
 			"\x02" # frame type: header
 			"\x00\x01" # channel: 1
@@ -46,10 +43,10 @@ class FrameTests(FramesTestCase):
 					# a_bool: present, but no data as it is a bool
 			"\xCE" # frame end
 		)
-		self.assertEquals(frame.pack(), expected)
+		self.check(args, expected)
 
 	def test_body_frame(self):
-		frame = Frame(Frame.BODY_TYPE, 1, "placeholder strings are hard")
+		args = Frame.BODY_TYPE, 1, "placeholder strings are hard"
 		expected = (
 			"\x03" # frame type: body
 			"\x00\x01" # channel: 1
@@ -58,17 +55,17 @@ class FrameTests(FramesTestCase):
 				"placeholder strings are hard"
 			"\xCE" # frame end
 		)
-		self.assertEquals(frame.pack(), expected)
+		self.check(args, expected)
 
 	def test_heartbeat(self):
-		frame = Frame(Frame.HEARTBEAT_TYPE, 0)
+		args = Frame.HEARTBEAT_TYPE, 0
 		expected = (
 			"\x04" # frame type: body
 			"\x00\x00" # channel: 0
 			"\x00\x00\x00\x00" # payload size: 0
 			"\xCE" # frame end
 		)
-		self.assertEquals(frame.pack(), expected)
+		self.check(args, expected)
 
 
 if __name__ == '__main__':
