@@ -64,11 +64,13 @@ class ContentHeaderPayload(Sequence):
 	@classmethod
 	def unpack(cls, data):
 		# we special-case as we need properties unpack class to change according to method_class
-		method_class, data = Octet.unpack(data)
-		weight, data = Octet.unpack(data)
+		method_class, data = Short.unpack(data)
+		method_class = method_class.value
+		weight, data = Short.unpack(data)
 		body_size, data = LongLong.unpack(data)
+		body_size = body_size.value
 		properties, data = Properties.get_by_class(method_class).unpack(data)
-		return cls(method_class, body_size, properties)
+		return cls(method_class, body_size, properties), data
 
 
 class ContentPayload(DataType):
