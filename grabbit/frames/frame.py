@@ -31,7 +31,7 @@ class MethodPayload(Sequence):
 		else:
 			if len(args) < 2:
 				raise TypeError("If no Method given, method_class and method_id must be provided")
-			method_class, method_id  = args[:2]
+			method_class, method_id = args[:2]
 			args = args[2:]
 			self.method = Method.from_id(method_class, method_id)(*args)
 		super(MethodPayload, self).__init__(method_class, method_id)
